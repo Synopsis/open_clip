@@ -488,6 +488,16 @@ def get_data(args, preprocess_fns, epoch=0, tokenizer=None):
     data = {}
 
     if args.train_data and args.dataset_type == "csv_multicaption":
+        import os
+
+        sys.path.append("/home/synopsis/git/CinemaNet-Training/")
+        sys.path.append("/home/synopsis/git/YOLOX-Custom/")
+        sys.path.append("/home/synopsis/git/YOLO-CinemaNet/")
+        sys.path.append("/home/synopsis/git/icevision/")
+        sys.path.append("/home/synopsis/git/labelling-workflows/")
+        sys.path.append("/home/synopsis/git/amalgam/")
+        sys.path.append("/home/synopsis/git/cinemanet-multitask-classification/")
+
         from cinemanet.CLIP.dataset import CinemaNetCsvDataset
 
         data["train"] = CinemaNetCsvDataset(
