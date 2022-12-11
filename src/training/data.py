@@ -487,7 +487,18 @@ def get_data(args, preprocess_fns, epoch=0, tokenizer=None):
     preprocess_train, preprocess_val = preprocess_fns
     data = {}
 
-    if args.train_data or args.dataset_type == "synthetic":
+    if args.train_data and args.dataset_type == "csv_multicaption":
+        from cinemanet.CLIP.dataset import CinemaNetCsvDataset
+
+        data["train"] = CinemaNetCsvDataset(
+            args.train_data, preprocess_train,
+            img_key=args.csv_img_key,
+            caption_key=args.csv_caption_key,
+            sep=args.csv_separator,
+            tokenizer=tokenizer
+        )
+
+    elif args.train_data or args.dataset_type == "synthetic":
         data["train"] = get_dataset_fn(args.train_data, args.dataset_type)(
             args, preprocess_train, is_train=True, epoch=epoch, tokenizer=tokenizer)
 
