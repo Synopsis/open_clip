@@ -1,6 +1,6 @@
 from collections import OrderedDict
 import math
-from typing import Callable, Optional
+from typing import Callable, Optional, Sequence
 
 import torch
 from torch import nn
@@ -44,6 +44,40 @@ class LayerScale(nn.Module):
     def forward(self, x):
         return x.mul_(self.gamma) if self.inplace else x * self.gamma
 
+class PatchDropout():
+    """
+    https://arxiv.org/abs/2212.00794
+    """
+
+    def __init__(self, prob, exclude_first_token = True):        
+        assert 0 <= prob < 1.
+        self.prob = prob
+        self.exclude_first_token = exclude_first_token # exclude CLS token
+
+    def __call__(self, x, is_training):
+        if not is_training or self.prob == 0.:
+            return x
+
+        if self.exclude_first_token:
+            cls_tokens, x = x[:, :1], x[:, 1:]
+
+        batch, num_tokens, _, device = *x.shape, x.device
+
+        batch_indices = torch.arange(batch, device = device)
+        batch_indices = batch_indices[..., None]
+
+        keep_prob = 1 - self.prob
+        num_patches_keep = max(1, int(num_tokens * keep_prob))
+
+        rand = torch.randn(batch, num_tokens, device = device)
+        patch_indices_keep = rand.topk(num_patches_keep, dim = -1).indices
+
+        x = x[batch_indices, patch_indices_keep]
+
+        if self.exclude_first_token:
+            x = torch.cat((cls_tokens, x), dim = 1)
+
+        return x
 
 class Attention(nn.Module):
     def __init__(
@@ -241,7 +275,9 @@ class VisionTransformer(nn.Module):
             heads: int,
             mlp_ratio: float,
             ls_init_value: float = None,
+            global_average_pool: bool = False,
             output_dim: int = 512,
+            patch_dropout: float = 0.,
             act_layer: Callable = nn.GELU,
             norm_layer: Callable = LayerNorm,
     ):
@@ -255,6 +291,10 @@ class VisionTransformer(nn.Module):
         scale = width ** -0.5
         self.class_embedding = nn.Parameter(scale * torch.randn(width))
         self.positional_embedding = nn.Parameter(scale * torch.randn(self.grid_size[0] * self.grid_size[1] + 1, width))
+
+        # setting a patch_dropout of 0. would mean it is disabled and this function would be the identity fn
+        self.patch_dropout = PatchDropout(patch_dropout)
+
         self.ln_pre = norm_layer(width)
         self.transformer = Transformer(
             width,
@@ -266,15 +306,44 @@ class VisionTransformer(nn.Module):
             norm_layer=norm_layer,
         )
 
+        self.global_average_pool = global_average_pool
         self.ln_post = norm_layer(width)
         self.proj = nn.Parameter(scale * torch.randn(width, output_dim))
 
         self.init_parameters()
 
     def lock(self, unlocked_groups=0, freeze_bn_stats=False):
-        assert unlocked_groups == 0, 'partial locking not currently supported for this model'
         for param in self.parameters():
             param.requires_grad = False
+        
+        if unlocked_groups != 0:
+            groups = [
+                [
+                    self.conv1,
+                    self.class_embedding,
+                    self.positional_embedding,
+                    self.ln_pre,
+                ],
+                *self.transformer.resblocks[:-1],
+                [
+                    self.transformer.resblocks[-1],
+                    self.ln_post,
+                ],
+                self.proj,
+            ]
+
+            def _unlock(x):
+                if isinstance(x, Sequence):
+                    for g in x:
+                        _unlock(g)
+                else:
+                    if isinstance(x, torch.nn.Parameter):
+                        x.requires_grad = True
+                    else:
+                        for p in x.parameters():
+                            p.requires_grad = True
+
+            _unlock(groups[-unlocked_groups:])
 
     def init_parameters(self):
          # FIXME OpenAI CLIP did not define an init for the VisualTransformer
@@ -308,13 +377,20 @@ class VisionTransformer(nn.Module):
             [self.class_embedding.to(x.dtype) + torch.zeros(x.shape[0], 1, x.shape[-1], dtype=x.dtype, device=x.device),
              x], dim=1)  # shape = [*, grid ** 2 + 1, width]
         x = x + self.positional_embedding.to(x.dtype)
+
+        x = self.patch_dropout(x, self.training) # a patch_dropout of 0. would mean it is disabled and this function would do nothing but return what was passed in
         x = self.ln_pre(x)
 
         x = x.permute(1, 0, 2)  # NLD -> LND
         x = self.transformer(x)
         x = x.permute(1, 0, 2)  # LND -> NLD
 
-        x = self.ln_post(x[:, 0, :])
+        if self.global_average_pool:
+            x = x.mean(dim=1)
+        else:
+            x = x[:, 0]
+
+        x = self.ln_post(x)
 
         if self.proj is not None:
             x = x @ self.proj

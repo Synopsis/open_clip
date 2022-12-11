@@ -36,7 +36,7 @@ def register_pooler(cls):
 class MeanPooler(nn.Module):
     """Mean pooling"""
     def forward(self, x:BaseModelOutput, attention_mask:TensorType):
-        masked_output = x.last_hidden_state * attention_mask.unsqueeze(-1)        
+        masked_output = x.last_hidden_state * attention_mask.unsqueeze(-1)
         return masked_output.sum(dim=1) / attention_mask.sum(-1, keepdim=True)
 
 @register_pooler
@@ -55,24 +55,25 @@ class ClsPooler(nn.Module):
         self.use_pooler_output = use_pooler_output
 
     def forward(self, x:BaseModelOutput, attention_mask:TensorType):
-        
-        if (self.use_pooler_output and 
+
+        if (self.use_pooler_output and
             isinstance(x, (BaseModelOutputWithPooling, BaseModelOutputWithPoolingAndCrossAttentions)) and
             (x.pooler_output is not None)
             ):
             return x.pooler_output
-        
+
         return x.last_hidden_state[:, self.cls_token_position, :]
 
-class PreTrainedTextEncoder(nn.Module):
+class HFTextEncoder(nn.Module):
     """HuggingFace model adapter"""
     def __init__(
-            self, 
+            self,
             model_name_or_path:str,
             output_dim:int,
             config: PretrainedConfig=None,
             pooler_type:str=None,
-            proj:str=None):
+            proj:str=None,
+            pretrained:bool=True):
         super().__init__()
 
         self.output_dim = output_dim
@@ -84,7 +85,13 @@ class PreTrainedTextEncoder(nn.Module):
             raise RuntimeError("Please `pip install transformers` to use pre-trained HuggingFace models")
         if config is None:
             self.config = AutoConfig.from_pretrained(model_name_or_path)
-            self.transformer = AutoModel.from_pretrained(model_name_or_path, add_pooling_layer=uses_transformer_pooler)
+            create_func, model_args = (AutoModel.from_pretrained, model_name_or_path) if pretrained else (AutoModel.from_config, self.config)
+            # TODO: do all model configs have this attribute? PretrainedConfig does so yes??
+            if hasattr(self.config, "is_encoder_decoder") and self.config.is_encoder_decoder:
+                self.transformer = create_func(model_args)
+                self.transformer = self.transformer.encoder
+            else:
+                self.transformer = create_func(model_args, add_pooling_layer=uses_transformer_pooler)
         else:
             self.config = config
             self.transformer = AutoModel.from_config(config)
@@ -120,8 +127,12 @@ class PreTrainedTextEncoder(nn.Module):
                  p.requires_grad = (not freeze_layer_norm) if "LayerNorm" in n.split(".") else False
              return
 
-        n_layers = len(self.transformer.encoder.layer) - unlocked_layers - 1 # -1 for embeddings
-        modules = [self.transformer.embeddings, self.transformer.encoder.layer[:n_layers]]
+        encoder = self.transformer.encoder if hasattr(self.transformer, 'encoder') else self.transformer
+        layer_list = getattr(encoder, arch_dict[self.config.model_type]["config_names"]["layer_attr"])
+        print(f"Unlocking {unlocked_layers}/{len(layer_list)+1} layers of hf model")
+        embeddings = getattr(self.transformer, arch_dict[self.config.model_type]["config_names"]["token_embeddings_attr"])
+        modules = [embeddings, *layer_list][:-unlocked_layers]
+        # freeze layers
         for module in modules:
             for n, p in module.named_parameters():
                 p.requires_grad = (not freeze_layer_norm) if "LayerNorm" in n.split(".") else False

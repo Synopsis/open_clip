@@ -16,13 +16,13 @@ def parse_args(args):
         "--train-data",
         type=str,
         default=None,
-        help="Path to csv filewith training data",
+        help="Path to file(s) with training data",
     )
     parser.add_argument(
         "--val-data",
         type=str,
         default=None,
-        help="Path to csv file with validation data",
+        help="Path to file(s) with validation data",
     )
     parser.add_argument(
         "--train-num-samples",
@@ -218,6 +218,12 @@ def parse_args(args):
         help="Force use of QuickGELU activation for non-OpenAI transformer models.",
     )
     parser.add_argument(
+        "--force-patch-dropout",
+        default=None,
+        type=float,
+        help="Override the patch dropout during training, for fine tuning with no dropout near the end as in the paper",
+    )
+    parser.add_argument(
         "--force-custom-text",
         default=False,
         action='store_true',
@@ -234,6 +240,9 @@ def parse_args(args):
         default=False,
         action='store_true',
         help="torch.jit.trace the model for inference / eval only",
+    )
+    parser.add_argument(
+        "--accum-freq", type=int, default=1, help="Update the model every --acum-freq steps."
     )
     # arguments for distributed training
     parser.add_argument(
@@ -258,6 +267,12 @@ def parse_args(args):
         help="Notes if logging with wandb"
     )
     parser.add_argument(
+        "--wandb-project-name",
+        type=str,
+        default='open-clip',
+        help="Name of the project if logging with wandb.",
+    )
+    parser.add_argument(
         "--debug",
         default=False,
         action="store_true",
@@ -267,7 +282,7 @@ def parse_args(args):
         "--copy-codebase",
         default=False,
         action="store_true",
-        help="If true, we copy the entire base on the log diretory, and execute from there."
+        help="If true, we copy the entire base on the log directory, and execute from there."
     )
     parser.add_argument(
         "--horovod",
@@ -310,6 +325,12 @@ def parse_args(args):
         default=False,
         action='store_true',
         help="Freeze BatchNorm running stats in image tower for any locked layers.",
+    )
+    parser.add_argument(
+        "--log-every-n-steps",
+        type=int,
+        default=100,
+        help="Log every n steps to tensorboard/console/wandb.",
     )
 
 
