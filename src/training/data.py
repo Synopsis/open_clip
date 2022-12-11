@@ -497,16 +497,37 @@ def get_data(args, preprocess_fns, epoch=0, tokenizer=None):
         sys.path.append("/home/synopsis/git/labelling-workflows/")
         sys.path.append("/home/synopsis/git/amalgam/")
         sys.path.append("/home/synopsis/git/cinemanet-multitask-classification/")
+        sys.path.append("/home/synopsis/git/Synopsis.py")
 
         from cinemanet.CLIP.dataset import CinemaNetCsvDataset
 
-        data["train"] = CinemaNetCsvDataset(
+        dataset = CinemaNetCsvDataset(
             args.train_data, preprocess_train,
             img_key=args.csv_img_key,
             caption_key=args.csv_caption_key,
             sep=args.csv_separator,
             tokenizer=tokenizer
         )
+
+        # FIXME: Duplicated code, but this is more explicit.
+        is_train = True
+        num_samples = len(dataset)
+        sampler = DistributedSampler(dataset) if args.distributed and is_train else None
+        shuffle = is_train and sampler is None
+
+        dataloader = DataLoader(
+            dataset,
+            batch_size=args.batch_size,
+            shuffle=shuffle,
+            num_workers=args.workers,
+            pin_memory=True,
+            sampler=sampler,
+            drop_last=is_train,
+        )
+        dataloader.num_samples = num_samples
+        dataloader.num_batches = len(dataloader)
+
+        data["train"] = DataInfo(dataloader, sampler)
 
     elif args.train_data or args.dataset_type == "synthetic":
         data["train"] = get_dataset_fn(args.train_data, args.dataset_type)(
