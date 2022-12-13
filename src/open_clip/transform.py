@@ -63,7 +63,7 @@ def image_transform(
     normalize = Normalize(mean=mean, std=std)
     if is_train:
         return Compose([
-            Resize(image_size, interpolation=InterpolationMode.BICUBIC, antialias=True),
+            Resize((image_size, image_size), interpolation=InterpolationMode.BICUBIC, antialias=True),
             # RandomResizedCrop(image_size, scale=(0.9, 1.0), interpolation=InterpolationMode.BICUBIC),
             _convert_to_rgb,
             ToTensor(),
