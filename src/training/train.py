@@ -224,7 +224,7 @@ def evaluate_cinemanet(model, args, epoch):
     model.eval()
 
     sd_stock = torch.load("/home/synopsis/git/open_clip/src/openai-ViT-L-14_pretrained.pth", map_location="cpu")
-    sd_finetune = {k:v.detach().cpu() for k,v in model.state_dict().items()}
+    sd_finetune = {k:v.detach().cpu() for k,v in unwrap_model(model).state_dict().items()}
     sd_alpha_07 = interpolate_weights(sd_finetune, sd_stock, alpha=0.7)
     sd_alpha_05 = interpolate_weights(sd_finetune, sd_stock, alpha=0.5)
     sd_alpha_03 = interpolate_weights(sd_finetune, sd_stock, alpha=0.3)
@@ -254,7 +254,7 @@ def evaluate_cinemanet(model, args, epoch):
             })
 
     # Load back the fine-tuned weights
-    model.load_state_dict(sd_finetune)
+    unwrap_model(model).load_state_dict(sd_finetune)
 
 
 def evaluate(model, data, epoch, args, tb_writer=None):
