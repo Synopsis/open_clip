@@ -195,6 +195,68 @@ def train_one_epoch(model, data, epoch, optimizer, scaler, scheduler, args, tb_w
     # end for
 
 
+def evaluate_cinemanet(model, args, epoch):
+    if not is_master(args):
+        return {}
+
+    logging.info(f"Eval Epoch: {epoch}")
+
+    if True:
+        import sys
+        sys.path.append("/home/synopsis/git/CinemaNet-Training/")
+        sys.path.append("/home/synopsis/git/YOLOX-Custom/")
+        sys.path.append("/home/synopsis/git/YOLO-CinemaNet/")
+        sys.path.append("/home/synopsis/git/icevision/")
+        sys.path.append("/home/synopsis/git/labelling-workflows/")
+        sys.path.append("/home/synopsis/git/amalgam/")
+        sys.path.append("/home/synopsis/git/cinemanet-multitask-classification/")
+        sys.path.append("/home/synopsis/git/Synopsis.py/")
+
+    from cinemanet.CLIP.inference import run_image_classification
+    from cinemanet.CLIP.utils import interpolate_weights
+    from cinemanet.CLIP.mapping import TAXONOMY
+    from open_clip import get_tokenizer
+
+
+    tokenizer = get_tokenizer(args.model)
+    device = torch.device(args.device)
+    model.device = device
+    model.eval()
+
+    sd_stock = torch.load("/home/synopsis/git/open_clip/src/openai-ViT-L-14_pretrained.pth", map_location="cpu")
+    sd_finetune = {k:v.detach().cpu() for k,v in model.state_dict().items()}
+    sd_alpha_07 = interpolate_weights(sd_finetune, sd_stock, alpha=0.7)
+    sd_alpha_05 = interpolate_weights(sd_finetune, sd_stock, alpha=0.5)
+    sd_alpha_03 = interpolate_weights(sd_finetune, sd_stock, alpha=0.3)
+
+    wts_collection = [
+        ("alpha-1.0", sd_finetune),
+        ("alpha-0.7", sd_alpha_07),
+        ("alpha-0.5", sd_alpha_05),
+        ("alpha-0.3", sd_alpha_03),
+    ]
+
+    for (name, weights) in wts_collection:
+        model.load_state_dict(weights)
+        accuracies = {}
+        for category in TAXONOMY.keys():
+            acc,_,_,_ = run_image_classification(model, tokenizer, category, batch_size=8, verbose=False)
+            accuracies[category] = acc
+            if args.wandb:
+                wandb.log({
+                    f"{name}/val/{category}": acc, "epoch": epoch
+                })
+
+        if args.wandb:
+            wandb.log({
+                f"{name}/val/MEAN-accuracy": sum(accuracies).values() / len(accuracies),
+                "epoch": epoch
+            })
+
+    # Load back the fine-tuned weights
+    model.load_state_dict(sd_finetune)
+
+
 def evaluate(model, data, epoch, args, tb_writer=None):
     metrics = {}
     if not is_master(args):

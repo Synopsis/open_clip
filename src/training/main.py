@@ -31,6 +31,7 @@ from training.logger import setup_logging
 from training.params import parse_args
 from training.scheduler import cosine_lr
 from training.train import train_one_epoch, evaluate
+from training.train import evaluate_cinemanet
 
 
 def random_seed(seed=42, rank=0):
@@ -273,6 +274,8 @@ def main(args):
 
         if any(v in data for v in ('val', 'imagenet-val', 'imagenet-v2')):
             evaluate(model, data, completed_epoch, args, writer)
+
+        evaluate_cinemanet(model, args, completed_epoch)
 
         # Saving checkpoints.
         if args.save_logs:
