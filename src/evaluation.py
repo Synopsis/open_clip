@@ -58,8 +58,8 @@ from cinemanet.CLIP.utils import load_model
 
 def evaluate_model(
     # Main Args
-    variant:       P("Model arch", str),
-    pretrained:    P("Pretrained?", str) = None,
+    variant:       P("Model arch", str) = "ViT-L-14",
+    pretrained:    P("Pretrained?", str) = "openai",
     ckpt_path:     P("", str) = None,
     alphas:        P("Alpha to blend `pretrained` and `ckpt_path` model", float, nargs='+') = None,
     experiment:    P("Name of the experiment", str) = None,
