@@ -158,10 +158,10 @@ def evaluate_model(
 
         x = pd.DataFrame(data.items())
         x.columns = ["Categories", "Accuracy"]
-        x.insert(0, 'Variant', [variant]*len(x))
         x.insert(0, 'Alpha', [alpha]*len(x))
         dfs.append(x)
     df = pd.concat(dfs)
+    df.insert(0, 'Variant', [variant]*len(x))
     df.insert(0, 'Experiment', [experiment]*len(df))
     df.to_csv(save_dir / f"{experiment}_metrics", index=False)
 
