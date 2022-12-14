@@ -56,6 +56,8 @@ from cinemanet.CLIP.utils import interpolate_weights
 from cinemanet.CLIP.mapping import TAXONOMY
 from cinemanet.CLIP.utils import load_model
 
+
+@call_parse
 def evaluate_model(
     # Main Args
     variant:       P("Model arch", str) = "ViT-L-14",
