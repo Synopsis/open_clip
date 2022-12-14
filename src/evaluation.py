@@ -56,7 +56,7 @@ from cinemanet.CLIP.utils import interpolate_weights
 from cinemanet.CLIP.mapping import TAXONOMY
 from cinemanet.CLIP.utils import load_model
 
-def eval(
+def evaluate_model(
     # Main Args
     variant:       P("Model arch", str),
     pretrained:    P("Pretrained?", str) = None,
@@ -93,11 +93,14 @@ def eval(
         workers = num_workers,
         imagenet_val = path_imagenet,
         # Eval
+        zeroshot_frequency = 1,
+        distributed = False,
         wandb = wandb_id is not None,
         val_frequency = 1,
         precision = "amp_bf16",
         device = device,
         save_logs = False,
+        rank = 0,
     )
 
     tokenizer = get_tokenizer(args.model)
@@ -109,8 +112,7 @@ def eval(
     sd_alpha_10 = {k:v.detach().cpu() for k,v in unwrap_model(model).state_dict().items()}
 
     alphas = alphas or []
-    alphas = sorted(set([0.0, *alphas, 1.0]))
-    pbar = tqdm(alphas)
+    pbar = tqdm(sorted(alphas))
 
     IMAGENET_METRICS = {}
     CINEMANET_METRICS = {}
@@ -123,20 +125,25 @@ def eval(
         unwrap_model(model).load_state_dict(weights)
 
         if imagenet:
-            image_mean = image_mean or getattr(model.visual, 'image_mean', None)
-            image_std = image_std or getattr(model.visual, 'image_std', None)
+            imagenet_data = {}
+            image_mean = getattr(model.visual, 'image_mean', None)
+            image_std = getattr(model.visual, 'image_std', None)
             preproc = image_transform(
                 model.visual.image_size, False, image_mean, image_std)
-            imagenet_data = get_imagenet(args, (None, preproc), split="val")
+            imagenet_data["imagenet-val"] = get_imagenet(args, (None, preproc), split="val")
 
             IMAGENET_METRICS[alpha] = evaluate(model, imagenet_data, 1, args)
+            print(f"ImageNet Metrics (Alpha={alpha})")
+            print(IMAGENET_METRICS[alpha])
 
         if cinemanet:
             accuracies = {}
             for category in TAXONOMY.keys():
-                acc,_,_,_ = run_image_classification(model, tokenizer, category, batch_size=8, verbose=False)
+                acc,_,_,_,_ = run_image_classification(model, tokenizer, category, batch_size=8, verbose=False)
                 accuracies[category] = acc
             CINEMANET_METRICS[alpha] = accuracies
+            print(f"CinemaNet Metrics (Alpha={alpha})")
+            print(CINEMANET_METRICS[alpha])
 
         pbar.update()
 
