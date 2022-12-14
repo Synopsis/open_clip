@@ -158,6 +158,7 @@ def evaluate_model(
 
         x = pd.DataFrame(data.items())
         x.columns = ["Categories", "Accuracy"]
+        x.insert(0, 'Variant', [variant]*len(x))
         x.insert(0, 'Alpha', [alpha]*len(x))
         dfs.append(x)
     df = pd.concat(dfs)
