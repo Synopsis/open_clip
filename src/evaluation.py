@@ -30,7 +30,6 @@ from upyog.all import *
 from upyog.cli import Param as P
 from types import SimpleNamespace
 
-from cinemanet.CLIP.utils import load_model
 
 if torch.cuda.is_available():
     # This enables tf32 on Ampere GPUs which is only 8% slower than
@@ -55,7 +54,7 @@ if True:
 from cinemanet.CLIP.inference import run_image_classification
 from cinemanet.CLIP.utils import interpolate_weights
 from cinemanet.CLIP.mapping import TAXONOMY
-from open_clip import get_tokenizer
+from cinemanet.CLIP.utils import load_model
 
 def eval(
     # Main Args
