@@ -62,6 +62,7 @@ def evaluate_model(
     pretrained:    P("Pretrained?", str) = None,
     ckpt_path:     P("", str) = None,
     alphas:        P("Alpha to blend `pretrained` and `ckpt_path` model", float, nargs='+') = None,
+    experiment:    P("Name of the experiment", str) = None,
     # ...
     wandb_id:      P("Wandb ID to log runs to", str) = None,
     imagenet:      P("Do ImageNet val?", bool) = True,
@@ -71,7 +72,7 @@ def evaluate_model(
     device:        P("Device", int) = 0,
     path_imagenet: P("Path to the ImageNet validation set", str) = "/home/synopsis/datasets/ImageNet/validation/",
     save_dir:      P("Path to log metrics to", str) = None,
-):
+) -> pd.DataFrame:
     if pretrained and ckpt_path:
         if alphas is None:
             raise RuntimeError(
@@ -147,4 +148,20 @@ def evaluate_model(
 
         pbar.update()
 
-    return IMAGENET_METRICS, CINEMANET_METRICS
+    dfs = []
+    for (alpha,cnet_data), (_,imgnet_data) in zip(CINEMANET_METRICS.items(), IMAGENET_METRICS.items()):
+        data = {}
+        data["ImgNet-Top-1"] = imgnet_data["imagenet-zeroshot-val-top1"]
+        data["ImgNet-Top-5"] = imgnet_data["imagenet-zeroshot-val-top5"]
+        for k,v in cnet_data.items():
+            data[k] = v
+
+        x = pd.DataFrame(data.items())
+        x.columns = ["Categories", "Accuracy"]
+        x.insert(0, 'Alpha', [alpha]*len(x))
+        dfs.append(x)
+    df = pd.concat(dfs)
+    df.insert(0, 'Experiment', [experiment]*len(df))
+    df.to_csv(save_dir / f"{experiment}_metrics", index=False)
+
+    return df
