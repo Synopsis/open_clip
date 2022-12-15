@@ -1,34 +1,14 @@
-import logging
-import os
 import sys
-import random
+import torch
 from datetime import datetime
 
-import numpy as np
-import torch
-from torch import optim
-from torch.cuda.amp import GradScaler
-from torch.utils.data import DataLoader
-
-try:
-    import wandb
-except ImportError:
-    wandb = None
-
-from open_clip import create_model_and_transforms, trace_model, get_tokenizer
+from open_clip import get_tokenizer
 from open_clip.factory import image_transform
-from training.data import get_data
-from training.distributed import is_master, init_distributed_device, world_info_from_env
-from training.logger import setup_logging
-from training.params import parse_args
-from training.scheduler import cosine_lr
-from training.train import train_one_epoch, evaluate, unwrap_model
-from training.train import evaluate_cinemanet
-from training.data import get_imagenet, DataInfo
+from training.train import evaluate, unwrap_model
+from training.data import get_imagenet
 
 from upyog.all import *
 from upyog.cli import Param as P
-from types import SimpleNamespace
 
 
 if torch.cuda.is_available():
