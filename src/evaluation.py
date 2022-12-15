@@ -92,7 +92,9 @@ def evaluate_model(
     model.device = torch.device(device)
     model.eval()
 
-    sd_stock = torch.load("/home/synopsis/git/open_clip/src/openai-ViT-L-14_pretrained.pth", map_location="cpu")
+    stock = load_model(variant, "cpu", pretrained, None)
+    sd_stock = stock.state_dict()
+    # sd_stock = torch.load("/home/synopsis/git/open_clip/src/openai-ViT-L-14_pretrained.pth", map_location="cpu")
     sd_alpha_10 = {k:v.detach().cpu() for k,v in unwrap_model(model).state_dict().items()}
 
     alphas = alphas or []
