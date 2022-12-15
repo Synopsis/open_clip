@@ -1,11 +1,5 @@
 import sys
 import torch
-from datetime import datetime
-
-from open_clip import get_tokenizer
-from open_clip.factory import image_transform
-from training.train import evaluate, unwrap_model
-from training.data import get_imagenet
 
 from upyog.all import *
 from upyog.cli import Param as P
@@ -71,7 +65,7 @@ def run_embeddings(
     model.eval()
 
     sd_stock = torch.load("/home/synopsis/git/open_clip/src/openai-ViT-L-14_pretrained.pth", map_location="cpu")
-    sd_finetune = {k:v.detach().cpu() for k,v in unwrap_model(model).state_dict().items()}
+    sd_finetune = {k:v.detach().cpu() for k,v in model.state_dict().items()}
     interpolated_wts = interpolate_weights(sd_finetune, sd_stock, alpha)
 
     model.load_state_dict(interpolated_wts)
