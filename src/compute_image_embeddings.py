@@ -37,14 +37,15 @@ def run_embeddings(
     ckpt_path:     P("", str) = None,
     img_folders:   P("", str, nargs="+") = ["/home/synopsis/datasets/shotdeck-thumbs/"],
     img_files:     P("", str, nargs="+") = None,
-    alpha:         P("Alpha to blend `pretrained` and `ckpt_path` model", float) = None,
+    alpha:         P("Alpha to blend `pretrained` and `ckpt_path` model", float) = 0.5,
     experiment:    P("Name of the experiment", str) = None,
-    batch_size:    P("Batch Size", int) = 64,
+    batch_size:    P("Batch Size", int) = 32,
     num_workers:   P("DataLoader num workers", int) = 4,
     device:        P("Device", int) = 0,
     save_dir:      P("Path to save the DataFrame to", str) = "/home/synopsis/datasets/serialised-datasets/CLIP/",
 ) -> Tuple[pd.DataFrame, dict]:
     args = deepcopy(locals())
+    rich.print(f"\nArgs:\n{args}\n")
 
     if pretrained and ckpt_path:
         if alpha is None:
@@ -55,6 +56,9 @@ def run_embeddings(
 
     if not save_dir:
         raise RuntimeError(f"You need to enter a `save_dir`")
+
+    if not experiment:
+        raise RuntimeError(f"Require `experiment` name to determine the save filename")
 
     save_dir = Path(save_dir)
     save_dir.mkdir(exist_ok=True)
