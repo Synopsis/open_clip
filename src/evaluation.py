@@ -83,11 +83,12 @@ def evaluate_model(
             )
     if save_dir is None:
         save_dir = Path.cwd() / "val_logs"
-        save_dir.mkdir(exist_ok=True)
         logger.warning(
-            f"You did not input a save path, so the current directory is being used: "
-            f""
+            f"You did not input a save path, so the current directory is being used: {save_dir}"
         )
+    save_dir = Path(save_dir)
+    save_dir.mkdir(exist_ok=True)
+
     args = SimpleNamespace(
         # Model
         model = variant,
