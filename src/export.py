@@ -23,78 +23,6 @@ The model was trained for 1 epoch on 660k cinemantic images (from ShotDeck) that
 """
 
 
-@call_parse
-def export_model(
-    # Args
-    variant:       P("Model arch", str) = "ViT-L-14-336",
-    ckpt_path:     P("Path to the fine-tuned model", str) = None,
-    pretrained:    P("Pretrained model tag", str) = "openai",
-    alpha:         P("Alpha to blend `pretrained` and `ckpt_path` model", float) = 0.5,
-    save_dir:      P("Path to save the model and schema to", str) = None,
-    version:       P("Model Version", str) = "1.0.0-RC1",
-):
-    args = deepcopy(locals())
-    model_str = f"CinemaCLIP fine-tuned from {pretrained} {variant}"
-
-    # Load model
-    # -- Stock model on CPU
-    stock = load_model(variant, "cpu", pretrained, None).eval()
-    sd_stock = stock.state_dict()
-
-    # -- Main model on GPU
-    model = load_model(variant, 0, None, ckpt_path).eval()
-    sd_finetune = {k:v.detach().cpu() for k,v in model.state_dict().items()}
-
-    # -- Interpolate weights
-    interpolated_wts = interpolate_weights(sd_finetune, sd_stock, alpha)
-    model.load_state_dict(interpolated_wts)
-
-    del interpolated_wts, sd_stock, sd_finetune
-
-
-    # Setup save dir / filenames
-    save_dir = Path(save_dir)
-    fname = f"CinemaCLIP_{variant}_{version}"
-    save_path_model = str(save_dir / f"{fname}.pt")
-    save_path_schema = str(save_dir / f"CinemaCLIPSchema{version}.json")
-
-    # Make schema
-    schema = create_clip_schema(model, version, model_str, meta)
-    with open(save_path_schema, "w") as f:
-        json.dump(schema, f, indent=4)
-    logger.success(f"Wrote schema to {save_path_schema}")
-
-    # Save export kwargs
-    with open(save_dir / "export_kwargs.json", "w") as f:
-        json.dump(args, f, indent=4)
-
-    # JIT Model
-    mjit = trace_model(model, batch_size=2, device="cuda:0")
-    torch.jit.save(save_path_model)
-    logger.success(f"Saved model to {save_path_model}")
-
-    del mjit, model
-
-
-    # Test Inference
-    cpu_device = torch.device("cpu")
-    gpu_device = torch.device("cuda:0")
-
-    logger.info(f"Testing models on different devices & batch sizes")
-    for device in [cpu_device, gpu_device]:
-        m = setup_model(device, save_path_model)
-        img_size = (schema["preprocessing"]["input_width"], schema["preprocessing"]["input_height"])
-
-        # Test at different batch sizes
-        for batch_size in [1,2]:
-            xi = torch.rand((batch_size, 3, *img_size), device=device)
-            xt = torch.zeros((batch_size, schema["text_encoder_context_length"]), dtype=torch.int, device=device)
-            m.encode_image(xi)
-            m.encode_text(xt)
-
-        del m
-
-    logger.success(f"Success!")
 
 
 # Helper functions
@@ -234,3 +162,77 @@ def setup_model(device: torch.device, path_model):
     # NOTE: We load the entire CLIP model, but only need the visual embedding, so we discard
     # the text encoder part of the model here
     return model
+
+@call_parse
+def export_model(
+    # Args
+    variant:       P("Model arch", str) = "ViT-L-14-336",
+    ckpt_path:     P("Path to the fine-tuned model", str) = None,
+    pretrained:    P("Pretrained model tag", str) = "openai",
+    alpha:         P("Alpha to blend `pretrained` and `ckpt_path` model", float) = 0.5,
+    save_dir:      P("Path to save the model and schema to", str) = None,
+    version:       P("Model Version", str) = "1.0.0-RC1",
+):
+    args = deepcopy(locals())
+    model_str = f"CinemaCLIP fine-tuned from {pretrained} {variant}"
+
+    # Load model
+    # -- Stock model on CPU
+    stock = load_model(variant, "cpu", pretrained, None).eval()
+    sd_stock = stock.state_dict()
+
+    # -- Main model on GPU
+    model = load_model(variant, 0, None, ckpt_path).eval()
+    sd_finetune = {k:v.detach().cpu() for k,v in model.state_dict().items()}
+
+    # -- Interpolate weights
+    interpolated_wts = interpolate_weights(sd_finetune, sd_stock, alpha)
+    model.load_state_dict(interpolated_wts)
+
+    del interpolated_wts, sd_stock, sd_finetune
+
+
+    # Setup save dir / filenames
+    save_dir = Path(save_dir) / version
+    save_dir.mkdir(exist_ok=True)
+    fname = f"CinemaCLIP_{variant}_{version}"
+    save_path_model = str(save_dir / f"{fname}.pt")
+    save_path_schema = str(save_dir / f"CinemaCLIPSchema{version}.json")
+
+    # Make schema
+    schema = create_clip_schema(model, version, model_str, meta)
+    with open(save_path_schema, "w") as f:
+        json.dump(schema, f, indent=4)
+    logger.success(f"Wrote schema to {save_path_schema}")
+
+    # Save export kwargs
+    with open(save_dir / "export_kwargs.json", "w") as f:
+        json.dump(args, f, indent=4)
+
+    # JIT Model
+    mjit = trace_model(model, batch_size=2, device="cuda:0")
+    torch.jit.save(mjit, save_path_model)
+    logger.success(f"Saved model to {save_path_model}")
+
+    del mjit, model
+
+
+    # Test Inference
+    cpu_device = torch.device("cpu")
+    gpu_device = torch.device("cuda:0")
+
+    logger.info(f"Testing models on different devices & batch sizes")
+    for device in [cpu_device, gpu_device]:
+        m = setup_model(device, save_path_model)
+        img_size = (schema["preprocessing"]["input_width"], schema["preprocessing"]["input_height"])
+
+        # Test at different batch sizes
+        for batch_size in [1,2]:
+            xi = torch.rand((batch_size, 3, *img_size), device=device)
+            xt = torch.zeros((batch_size, schema["text_encoder_context_length"]), dtype=torch.int, device=device)
+            m.encode_image(xi)
+            m.encode_text(xt)
+
+        del m
+
+    logger.success(f"Success!")
