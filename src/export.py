@@ -23,8 +23,6 @@ The model was trained for 1 epoch on 660k cinemantic images (from ShotDeck) that
 """
 
 
-
-
 # Helper functions
 def trace_model(model, batch_size=256, device=torch.device('cpu')):
     model.eval()
@@ -172,9 +170,9 @@ def export_model(
     alpha:         P("Alpha to blend `pretrained` and `ckpt_path` model", float) = 0.5,
     save_dir:      P("Path to save the model and schema to", str) = None,
     version:       P("Model Version", str) = "1.0.0-RC1",
+    jit_export:    P("Do JIT export?", bool) = False,
 ):
     args = deepcopy(locals())
-    model_str = f"CinemaCLIP fine-tuned from {pretrained} {variant}"
 
     # Load model
     # -- Stock model on CPU
@@ -197,10 +195,11 @@ def export_model(
     save_dir.mkdir(exist_ok=True)
     fname = f"CinemaCLIP_{variant}_{version}"
     save_path_model = str(save_dir / f"{fname}.pt")
+    save_path_state_dict = str(save_dir / f"{fname}_weights.pth")
     save_path_schema = str(save_dir / f"CinemaCLIPSchema{version}.json")
 
     # Make schema
-    schema = create_clip_schema(model, version, model_str, meta)
+    schema = create_clip_schema(model, version, variant, meta)
     with open(save_path_schema, "w") as f:
         json.dump(schema, f, indent=4)
     logger.success(f"Wrote schema to {save_path_schema}")
@@ -209,30 +208,34 @@ def export_model(
     with open(save_dir / "export_kwargs.json", "w") as f:
         json.dump(args, f, indent=4)
 
-    # JIT Model
-    mjit = trace_model(model, batch_size=2, device="cuda:0")
-    torch.jit.save(mjit, save_path_model)
-    logger.success(f"Saved model to {save_path_model}")
+    if not jit_export:
+        torch.save(model.state_dict(), save_path_state_dict)
 
-    del mjit, model
+    else:
+        # JIT Model
+        mjit = trace_model(model, batch_size=2, device="cuda:0")
+        torch.jit.save(mjit, save_path_model)
+        logger.success(f"Saved model to {save_path_model}")
+
+        del mjit, model
 
 
-    # Test Inference
-    cpu_device = torch.device("cpu")
-    gpu_device = torch.device("cuda:0")
+        # Test Inference
+        cpu_device = torch.device("cpu")
+        gpu_device = torch.device("cuda:0")
 
-    logger.info(f"Testing models on different devices & batch sizes")
-    for device in [cpu_device, gpu_device]:
-        m = setup_model(device, save_path_model)
-        img_size = (schema["preprocessing"]["input_width"], schema["preprocessing"]["input_height"])
+        logger.info(f"Testing models on different devices & batch sizes")
+        for device in [cpu_device, gpu_device]:
+            m = setup_model(device, save_path_model)
+            img_size = (schema["preprocessing"]["input_width"], schema["preprocessing"]["input_height"])
 
-        # Test at different batch sizes
-        for batch_size in [1,2]:
-            xi = torch.rand((batch_size, 3, *img_size), device=device)
-            xt = torch.zeros((batch_size, schema["text_encoder_context_length"]), dtype=torch.int, device=device)
-            m.encode_image(xi)
-            m.encode_text(xt)
+            # Test at different batch sizes
+            for batch_size in [1,2]:
+                xi = torch.rand((batch_size, 3, *img_size), device=device)
+                xt = torch.zeros((batch_size, schema["text_encoder_context_length"]), dtype=torch.int, device=device)
+                m.encode_image(xi)
+                m.encode_text(xt)
 
-        del m
+            del m
 
-    logger.success(f"Success!")
+        logger.success(f"Success!")
