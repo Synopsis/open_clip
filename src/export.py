@@ -1,7 +1,6 @@
-from .evaluation import *
+from evaluation import *
 from upyog.all import *
 from upyog.cli import Param as P
-import open_clip
 
 if True:
     import sys
@@ -34,6 +33,7 @@ def export_model(
     save_dir:      P("Path to save the model and schema to", str) = None,
     version:       P("Model Version", str) = "1.0.0-RC1",
 ):
+    args = deepcopy(locals())
     model_str = f"CinemaCLIP fine-tuned from {pretrained} {variant}"
 
     # Load model
@@ -58,13 +58,15 @@ def export_model(
     save_path_model = str(save_dir / f"{fname}.pt")
     save_path_schema = str(save_dir / f"CinemaCLIPSchema{version}.json")
 
-
     # Make schema
     schema = create_clip_schema(model, version, model_str, meta)
     with open(save_path_schema, "w") as f:
         json.dump(schema, f, indent=4)
     logger.success(f"Wrote schema to {save_path_schema}")
 
+    # Save export kwargs
+    with open(save_dir / "export_kwargs.json", "w") as f:
+        json.dump(args, f, indent=4)
 
     # JIT Model
     mjit = trace_model(model, batch_size=2, device="cuda:0")
