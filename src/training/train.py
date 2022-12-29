@@ -237,7 +237,7 @@ def evaluate_cinemanet(model, args, epoch):
     ]
 
     for (name, weights) in wts_collection:
-        model.load_state_dict(weights)
+        unwrap_model(model).load_state_dict(weights)
         accuracies = {}
         for category in TAXONOMY.keys():
             acc,_,_,_ = run_image_classification(model, tokenizer, category, batch_size=8, verbose=False)
