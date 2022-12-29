@@ -283,10 +283,10 @@ def main(args):
         if any(v in data for v in ('val', 'imagenet-val', 'imagenet-v2')):
             evaluate(model, data, completed_epoch, args, writer)
 
-        try:
-            evaluate_cinemanet(model, args, completed_epoch)
-        except Exception as e:
-            logging.warn(f"Failed to run CinemaNet evaluation. Exception -> \n{e}")
+        # try:
+        #     evaluate_cinemanet(model, args, completed_epoch)
+        # except Exception as e:
+        #     logging.warn(f"Failed to run CinemaNet evaluation. Exception -> \n{e}")
 
         # Saving checkpoints.
         if args.save_logs:
