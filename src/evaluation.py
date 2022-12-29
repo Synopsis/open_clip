@@ -33,7 +33,7 @@ if True:
 
 from cinemanet.CLIP.inference import run_image_classification
 from cinemanet.CLIP.utils import interpolate_weights
-from cinemanet.CLIP.mapping import TAXONOMY
+from cinemanet.CLIP.mapping import TAXONOMY, TAXONOMY_CUSTOM_TOKENS, REVERSE_TAXONOMY, REVERSE_TAXONOMY_CUSTOM_TOKENS
 from cinemanet.CLIP.utils import load_model
 
 
@@ -42,7 +42,7 @@ def evaluate_model(
     # Main Args
     variant:       P("Model arch", str) = "ViT-L-14",
     pretrained:    P("Pretrained?", str) = "openai",
-    ckpt_path:     P("", str) = None,
+    ckpt_path:     P("Path to the fine-tuned model", str) = None,
     alphas:        P("Alpha to blend `pretrained` and `ckpt_path` model", float, nargs='+') = None,
     experiment:    P("Name of the experiment", str) = None,
     # ...
@@ -125,8 +125,20 @@ def evaluate_model(
         if cinemanet:
             accuracies = {}
             for category in TAXONOMY.keys():
-                acc,_,_,_,_ = run_image_classification(model, tokenizer, category, batch_size=8, verbose=False)
+
+                if variant.endswith("-custom-text"):
+                    taxonomy         = TAXONOMY[category]
+                    reverse_taxonomy = REVERSE_TAXONOMY[category]
+                else:
+                    taxonomy         = TAXONOMY_CUSTOM_TOKENS[category]
+                    reverse_taxonomy = REVERSE_TAXONOMY_CUSTOM_TOKENS[category]
+
+                acc,_,_,_,_ = run_image_classification(
+                    model, tokenizer, category, batch_size=8, verbose=False,
+                    taxonomy=taxonomy, reverse_taxonomy=reverse_taxonomy,
+                )
                 accuracies[category] = acc
+
             CINEMANET_METRICS[alpha] = accuracies
             print(f"CinemaNet Metrics (Alpha={alpha})")
             print(CINEMANET_METRICS[alpha])
