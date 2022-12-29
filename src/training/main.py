@@ -33,6 +33,17 @@ from training.scheduler import cosine_lr
 from training.train import train_one_epoch, evaluate
 from training.train import evaluate_cinemanet
 
+if True:
+    import sys
+    sys.path.append("/home/synopsis/git/CinemaNet-Training/")
+    sys.path.append("/home/synopsis/git/YOLOX-Custom/")
+    sys.path.append("/home/synopsis/git/YOLO-CinemaNet/")
+    sys.path.append("/home/synopsis/git/icevision/")
+    sys.path.append("/home/synopsis/git/labelling-workflows/")
+    sys.path.append("/home/synopsis/git/amalgam/")
+    sys.path.append("/home/synopsis/git/cinemanet-multitask-classification/")
+    sys.path.append("/home/synopsis/git/Synopsis.py/")
+
 
 def random_seed(seed=42, rank=0):
     torch.manual_seed(seed + rank)
