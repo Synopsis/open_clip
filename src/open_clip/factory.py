@@ -75,7 +75,12 @@ def get_tokenizer(model_name, args=None):
 
     # NOTE: This logic is duplicated in some places but this is _the best place_ for it
     if "-custom-text" in model_name:
-        args.custom_text_encoder = True
+        if args is None:
+            from types import SimpleNamespace
+            args = SimpleNamespace(custom_text_encoder=True)
+        else:
+            if not hasattr(args, "custom_text_encoder"):
+                args.custom_text_encoder = True
 
     if args and args.custom_text_encoder:
         from cinemanet.CLIP.text_modelling import update_tokenizer
