@@ -218,7 +218,7 @@ def evaluate_cinemanet(model, args, epoch):
     from open_clip import get_tokenizer
 
 
-    tokenizer = get_tokenizer(args.model)
+    tokenizer = get_tokenizer(args.model, args)
     device = torch.device(args.device)
     model.device = device
     model.eval()

@@ -10,7 +10,7 @@ from .imagenet_zeroshot_data import imagenet_classnames, openai_imagenet_templat
 
 
 def zero_shot_classifier(model, classnames, templates, args):
-    tokenizer = get_tokenizer(args.model)
+    tokenizer = get_tokenizer(args.model, args)
     with torch.no_grad():
         zeroshot_weights = []
         for classname in tqdm(classnames):
