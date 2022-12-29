@@ -70,10 +70,22 @@ def get_model_config(model_name):
         return None
 
 
-def get_tokenizer(model_name):
+def get_tokenizer(model_name, args=None):
     config = get_model_config(model_name)
-    tokenizer = HFTokenizer(config['text_cfg']['hf_tokenizer_name']) if 'hf_tokenizer_name' in config['text_cfg'] else tokenize
-    return tokenizer
+
+    if args and args.custom_text_encoder:
+        from cinemanet.CLIP.text_modelling import update_tokenizer
+
+        tokenizer = HFTokenizer(config['text_cfg']['hf_tokenizer_name'])
+        placeholder_token_ids = update_tokenizer(tokenizer)
+        tokenizer.placeholder_token_ids = placeholder_token_ids
+
+        return tokenizer
+
+    if 'hf_tokenizer_name' in config['text_cfg']:
+        return HFTokenizer(config['text_cfg']['hf_tokenizer_name'])
+    else:
+        return tokenize
 
 
 def load_state_dict(checkpoint_path: str, map_location='cpu'):

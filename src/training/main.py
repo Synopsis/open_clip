@@ -120,6 +120,7 @@ def main(args):
         logging.info(f'Running with a single process. Device {args.device}.')
 
     random_seed(args.seed, 0)
+    tokenizer = get_tokenizer(args.model, args)
     model, preprocess_train, preprocess_val = create_model_and_transforms(
         args.model,
         args.pretrained,
@@ -133,6 +134,13 @@ def main(args):
         image_mean=args.image_mean,
         image_std=args.image_std,
     )
+
+    if args and args.custom_text_encoder:
+        from cinemanet.CLIP.text_modelling import update_text_encoder
+
+        model = update_text_encoder(model, tokenizer, tokenizer.placeholder_token_ids)
+        logging.info(f"Updated text encoder")
+
     random_seed(args.seed, args.rank)
 
     if args.trace:
@@ -226,7 +234,7 @@ def main(args):
             logging.info("=> no checkpoint found at '{}'".format(args.resume))
 
     # initialize datasets
-    data = get_data(args, (preprocess_train, preprocess_val), epoch=start_epoch, tokenizer=get_tokenizer(args.model))
+    data = get_data(args, (preprocess_train, preprocess_val), epoch=start_epoch, tokenizer=tokenizer)
     assert len(data), 'At least one train or eval dataset must be specified.'
 
     # create scheduler if train
