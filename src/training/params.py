@@ -26,7 +26,6 @@ def parse_args(args):
     )
     parser.add_argument(
         "--custom-text-encoder",
-        type=str,
         default=False,
         action="store_true",
         help="Use a custom tokenizer and text encoder with dedicated cinematic tokens",
