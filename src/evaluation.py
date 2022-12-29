@@ -127,11 +127,11 @@ def evaluate_model(
             for category in TAXONOMY.keys():
 
                 if variant.endswith("-custom-text"):
-                    taxonomy         = TAXONOMY[category]
-                    reverse_taxonomy = REVERSE_TAXONOMY[category]
+                    taxonomy         = {category: TAXONOMY[category]}
+                    reverse_taxonomy = {category: REVERSE_TAXONOMY[category]}
                 else:
-                    taxonomy         = TAXONOMY_CUSTOM_TOKENS[category]
-                    reverse_taxonomy = REVERSE_TAXONOMY_CUSTOM_TOKENS[category]
+                    taxonomy         = {category: TAXONOMY_CUSTOM_TOKENS[category]}
+                    reverse_taxonomy = {category: REVERSE_TAXONOMY_CUSTOM_TOKENS[category]}
 
                 acc,_,_,_,_ = run_image_classification(
                     model, tokenizer, category, batch_size=8, verbose=False,
