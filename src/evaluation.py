@@ -72,6 +72,7 @@ def evaluate_model(
     args = SimpleNamespace(
         # Model
         model = variant,
+        custom_text_encoder = None,
         # Dataset
         batch_size = batch_size,
         workers = num_workers,
@@ -88,14 +89,19 @@ def evaluate_model(
     )
 
     tokenizer = get_tokenizer(args.model)
-    model = load_model(variant, device, None, ckpt_path)
+    
+    if ckpt_path:
+        model = load_model(variant, device, None, ckpt_path)
+        stock = load_model(variant, "cpu", pretrained, None)
+        sd_stock = stock.state_dict()
+    else:
+        model = stock = load_model(variant, device, pretrained, None)
+    
     model.device = torch.device(device)
     model.eval()
 
-    stock = load_model(variant, "cpu", pretrained, None)
-    sd_stock = stock.state_dict()
-    # sd_stock = torch.load("/home/synopsis/git/open_clip/src/openai-ViT-L-14_pretrained.pth", map_location="cpu")
-    sd_alpha_10 = {k:v.detach().cpu() for k,v in unwrap_model(model).state_dict().items()}
+    if ckpt_path:
+        sd_alpha_10 = {k:v.detach().cpu() for k,v in unwrap_model(model).state_dict().items()}
 
     alphas = alphas or []
     pbar = tqdm(sorted(alphas))
@@ -107,8 +113,9 @@ def evaluate_model(
         name = f"alpha-{alpha}"
         pbar.set_description(name)
 
-        weights = interpolate_weights(sd_alpha_10, sd_stock, alpha=alpha)
-        unwrap_model(model).load_state_dict(weights)
+        if ckpt_path:
+            weights = interpolate_weights(sd_alpha_10, sd_stock, alpha=alpha)
+            unwrap_model(model).load_state_dict(weights)
 
         if imagenet:
             imagenet_data = {}
