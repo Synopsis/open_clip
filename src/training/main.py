@@ -420,8 +420,8 @@ def main(args):
         train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist_model, args, tb_writer=writer)
         completed_epoch = epoch + 1
 
-        if any(v in data for v in ('val', 'imagenet-val', 'imagenet-v2')):
-            evaluate(model, data, completed_epoch, args, writer)
+        # if any(v in data for v in ('val', 'imagenet-val', 'imagenet-v2')):
+        #     evaluate(model, data, completed_epoch, args, writer)
 
         # try:
         #     evaluate_cinemanet(model, args, completed_epoch)
@@ -442,10 +442,35 @@ def main(args):
             if completed_epoch == args.epochs or (
                 args.save_frequency > 0 and (completed_epoch % args.save_frequency) == 0
             ):
-                torch.save(
-                    checkpoint_dict,
-                    os.path.join(args.checkpoint_path, f"epoch_{completed_epoch}.pt"),
-                )
+                save_path = os.path.join(args.checkpoint_path, f"epoch_{completed_epoch}.pt"),
+                torch.save(checkpoint_dict, save_path)
+
+                if is_master(args):
+                    from .inference import InferenceModel
+                    alphas = [0.5, 1.0]
+                    if completed_epoch == 1:
+                        alphas.insert(0, 0.0)
+
+                    for alpha in alphas:
+                        metrics = {}
+                        inf = InferenceModel(
+                            args.model, args.device, alpha, args.pretrained, save_path, args.batch_size
+                        )
+                        imgnet_metrics = inf.eval_imagenet()
+                        cinemanet_metrics, _, _ = inf.eval_cinemanet()
+
+                        metrics.update(imgnet_metrics)
+                        metrics.update({f"{k}-zeroshot-val-top1": v for k,v in cinemanet_metrics.items()})
+
+                        logging.info(
+                            f"Eval Epoch: {epoch} "
+                            + "\t".join([f"{k} (alpha={alpha}): {round(v, 4):.4f}" for k, v in metrics.items()])
+                        )
+
+                        for name, val in imgnet_metrics.items():
+                            wandb.log({f"val/alpha={alpha}/{name}": val, 'epoch': completed_epoch})
+
+
             if args.delete_previous_checkpoint:
                 previous_checkpoint = os.path.join(args.checkpoint_path, f"epoch_{completed_epoch - 1}.pt")
                 if os.path.exists(previous_checkpoint):
