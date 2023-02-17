@@ -244,6 +244,9 @@ def main(args):
         aug_cfg=args.aug_cfg,
         output_dict=True,
     )
+    import rich
+    rich.print(f"Preprocess Train:\n{preprocess_train}\n")
+    rich.print(f"Preprocess Val:\n{preprocess_val}\n")
 
     if args and args.custom_text_encoder:
         from cinemanet.CLIP.text_modelling import update_text_encoder
