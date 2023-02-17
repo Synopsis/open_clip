@@ -45,7 +45,78 @@ class ModelCfg:
     # path_embedding: Optional[str]
 
 
-class InferenceModel:
+class InferenceMixin:
+    def compute_image_embeddings(
+        self,
+        img_files: Optional[List[PathLike]] = None,
+        img_folders: Optional[List[PathLike]] = None,
+        batch_size: Optional[int] = 16,
+        num_workers: int = 4,
+    ):
+        if img_files is None and img_folders is None:
+            raise RuntimeError
+
+        return compute_image_embeddings(
+            self.model, img_files, img_folders, batch_size or self.batch_size, num_workers)
+
+    def eval_imagenet(
+        self,
+        path_imagenet = "/home/synopsis/datasets/ImageNet/validation/",
+        wandb_id = None,
+    ) -> dict:
+        """
+        Run inference on the ImageNet validation set using open-clip's prompts
+        """
+        from training.train import evaluate
+        from training.data import get_imagenet
+        from open_clip.factory import image_transform
+
+        args = self._get_eval_args(
+            self.batch_size, 4, path_imagenet, wandb_id, self.device)
+
+        imagenet_data = {}
+        image_mean = getattr(self.model.visual, 'image_mean', None)
+        image_std = getattr(self.model.visual, 'image_std', None)
+        preproc = image_transform(
+            self.model.visual.image_size, False, image_mean, image_std)
+        imagenet_data["imagenet-val"] = get_imagenet(args, (None, preproc), split="val")
+
+        return evaluate(self.model, imagenet_data, 1, args)
+
+    def eval_cinemanet(self) -> Tuple[dict, dict, dict]:
+        """
+        Run inference on the CinemaNet validation sets
+
+        Returns 3 dictionaries:
+            1. Dict[str, float]            -- overall accuracy by category
+            2. Dict[str, Dict[str, float]] -- accuracy per label per category
+            3. Dict[str, Dict[str, float]] -- inaccuracy per label per category
+        """
+        accuracies_overall = {}
+        accuracies_per_label = {}
+        inaccuracies_per_label = {}
+
+        # for category in TAXONOMY.keys():
+        for category in ["shot_framing", "color_tones"]:
+            if self.arch.endswith("-custom-text"):
+                taxonomy         = {category: TAXONOMY[category]}
+                reverse_taxonomy = {category: REVERSE_TAXONOMY[category]}
+            else:
+                taxonomy         = {category: TAXONOMY_CUSTOM_TOKENS[category]}
+                reverse_taxonomy = {category: REVERSE_TAXONOMY_CUSTOM_TOKENS[category]}
+
+            acc,_,_,acc_per_label,inacc_per_label = run_image_classification(
+                self.model, self.tokenizer, category, batch_size=self.batch_size,
+                verbose=False, taxonomy=taxonomy, reverse_taxonomy=reverse_taxonomy,
+            )
+            accuracies_overall[category] = acc
+            accuracies_per_label[category] = acc_per_label
+            inaccuracies_per_label[category] = inacc_per_label
+
+        return accuracies_overall, accuracies_per_label, inaccuracies_per_label
+
+
+class InferenceModelFromDisk(InferenceMixin):
 
     def __init__(
         self,
@@ -111,19 +182,6 @@ class InferenceModel:
 
         return filename
 
-    def compute_image_embeddings(
-        self,
-        img_files: Optional[List[PathLike]] = None,
-        img_folders: Optional[List[PathLike]] = None,
-        batch_size: Optional[int] = 16,
-        num_workers: int = 4,
-    ):
-        if img_files is None and img_folders is None:
-            raise RuntimeError
-
-        return compute_image_embeddings(
-            self.model, img_files, img_folders, batch_size or self.batch_size, num_workers)
-
     def _get_eval_args(self, batch_size, num_workers, path_imagenet, wandb_id, device):
         return SimpleNamespace(
             # Model
@@ -145,58 +203,40 @@ class InferenceModel:
         )
 
 
-    def eval_imagenet(
-        self,
-        path_imagenet = "/home/synopsis/datasets/ImageNet/validation/",
-        wandb_id = None,
-    ) -> dict:
-        """
-        Run inference on the ImageNet validation set using open-clip's prompts
-        """
-        from training.train import evaluate
-        from training.data import get_imagenet
-        from open_clip.factory import image_transform
+def unwrap_model(model):
+    return model.module if hasattr(model, 'module') else model
 
-        args = self._get_eval_args(
-            self.batch_size, 4, path_imagenet, wandb_id, self.device)
+class InferenceModel(InferenceMixin):
+    def __init__(self, model, tokenizer, orig_state_dict, args, alpha):
+        self.model = unwrap_model(model)
+        self.model.device = torch.device(args.device)
 
-        imagenet_data = {}
-        image_mean = getattr(self.model.visual, 'image_mean', None)
-        image_std = getattr(self.model.visual, 'image_std', None)
-        preproc = image_transform(
-            self.model.visual.image_size, False, image_mean, image_std)
-        imagenet_data["imagenet-val"] = get_imagenet(args, (None, preproc), split="val")
+        self.restore_state_dict = {
+            k:v.detach().cpu() for k,v in unwrap_model(model).state_dict().items()}
+        self.tokenizer = tokenizer
+        self.orig_state_dict = orig_state_dict
 
-        return evaluate(self.model, imagenet_data, 1, args)
+        # patch args
+        self.args = deepcopy(args)
+        self.args.imagenet_val = "/home/synopsis/datasets/ImageNet/validation/"
+        self.args.zeroshot_frequency = 1
+        self.args.val_frequency = 1
+        self.args.distributed = False
 
+        self.batch_size = args.batch_size
+        self.device = args.device
+        self.ckpt_path = None
+        self.pretrained = args.pretrained
+        self.arch = args.model
 
-    def eval_cinemanet(self) -> Tuple[dict, dict, dict]:
-        """
-        Run inference on the CinemaNet validation sets
+        from cinemanet.CLIP.utils import interpolate_weights
 
-        Returns 3 dictionaries:
-            1. Dict[str, float]            -- overall accuracy by category
-            2. Dict[str, Dict[str, float]] -- accuracy per label per category
-            3. Dict[str, Dict[str, float]] -- inaccuracy per label per category
-        """
-        accuracies_overall = {}
-        accuracies_per_label = {}
-        inaccuracies_per_label = {}
+        weights = interpolate_weights(
+            {k:v.detach().cpu() for k,v in unwrap_model(self.model).state_dict().items()},
+            orig_state_dict,
+            alpha,
+        )
+        unwrap_model(self.model).load_state_dict(weights)
 
-        for category in TAXONOMY.keys():
-            if self.arch.endswith("-custom-text"):
-                taxonomy         = {category: TAXONOMY[category]}
-                reverse_taxonomy = {category: REVERSE_TAXONOMY[category]}
-            else:
-                taxonomy         = {category: TAXONOMY_CUSTOM_TOKENS[category]}
-                reverse_taxonomy = {category: REVERSE_TAXONOMY_CUSTOM_TOKENS[category]}
-
-            acc,_,_,acc_per_label,inacc_per_label = run_image_classification(
-                self.model, self.tokenizer, category, batch_size=self.batch_size,
-                verbose=False, taxonomy=taxonomy, reverse_taxonomy=reverse_taxonomy,
-            )
-            accuracies_overall[category] = acc
-            accuracies_per_label[category] = acc_per_label
-            inaccuracies_per_label[category] = inacc_per_label
-
-        return accuracies_overall, accuracies_per_label, inaccuracies_per_label
+    def _get_eval_args(self, *args, **kwargs):
+        return self.args

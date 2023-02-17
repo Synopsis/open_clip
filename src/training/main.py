@@ -58,6 +58,9 @@ def random_seed(seed=42, rank=0):
     random.seed(seed + rank)
 
 
+def unwrap_model(model):
+    return model.module if hasattr(model, 'module') else model
+
 def natural_key(string_):
     """See http://www.codinghorror.com/blog/archives/001018.html"""
     return [int(s) if s.isdigit() else s for s in re.split(r'(\d+)', string_.lower())]
@@ -244,6 +247,10 @@ def main(args):
         aug_cfg=args.aug_cfg,
         output_dict=True,
     )
+    orig_state_dict = {
+        k:v.detach().cpu()
+        for k,v in unwrap_model(model).state_dict().items()
+    }
     import rich
     rich.print(f"Preprocess Train:\n{preprocess_train}\n")
     rich.print(f"Preprocess Val:\n{preprocess_val}\n")
@@ -442,8 +449,11 @@ def main(args):
             if completed_epoch == args.epochs or (
                 args.save_frequency > 0 and (completed_epoch % args.save_frequency) == 0
             ):
-                save_path = os.path.join(args.checkpoint_path, f"epoch_{completed_epoch}.pt"),
+                save_path = os.path.join(args.checkpoint_path, f"epoch_{completed_epoch}.pt")
                 torch.save(checkpoint_dict, save_path)
+
+                restore_state_dict = {
+                    k:v.detach().cpu() for k,v in unwrap_model(model).state_dict().items()}
 
                 if is_master(args):
                     from .inference import InferenceModel
@@ -453,9 +463,7 @@ def main(args):
 
                     for alpha in alphas:
                         metrics = {}
-                        inf = InferenceModel(
-                            args.model, args.device, alpha, args.pretrained, save_path, args.batch_size
-                        )
+                        inf = InferenceModel(model, tokenizer, orig_state_dict, args, alpha)
                         imgnet_metrics = inf.eval_imagenet()
                         cinemanet_metrics, _, _ = inf.eval_cinemanet()
 
@@ -467,8 +475,10 @@ def main(args):
                             + "\t".join([f"{k} (alpha={alpha}): {round(v, 4):.4f}" for k, v in metrics.items()])
                         )
 
-                        for name, val in imgnet_metrics.items():
-                            wandb.log({f"val/alpha={alpha}/{name}": val, 'epoch': completed_epoch})
+                        for name, val in metrics.items():
+                            wandb.log({f"val/{name}": val, 'epoch': completed_epoch, 'alpha': alpha})
+
+                unwrap_model(model).load_state_dict(restore_state_dict)
 
 
             if args.delete_previous_checkpoint:
