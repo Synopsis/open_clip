@@ -476,7 +476,8 @@ def main(args):
                         )
 
                         for name, val in metrics.items():
-                            wandb.log({f"val/{name}": val, 'epoch': completed_epoch, 'alpha': alpha})
+                            wandb.log({f"val/alpha={alpha}/{name}": val, 'epoch': completed_epoch, 'alpha': alpha})
+                            # wandb.log({f"val/{name}": val, 'epoch': completed_epoch, 'alpha': alpha})
 
                 unwrap_model(model).load_state_dict(restore_state_dict)
 
