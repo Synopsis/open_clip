@@ -457,18 +457,21 @@ def main(args):
 
                 if is_master(args):
                     from .inference import InferenceModel
-                    alphas = [0.5, 1.0]
+                    alphas = [0.5, 0.75, 1.0]
                     if completed_epoch == 1:
                         alphas.insert(0, 0.0)
 
                     for alpha in alphas:
                         metrics = {}
+                        unwrap_model(model).load_state_dict(restore_state_dict)
                         inf = InferenceModel(model, tokenizer, orig_state_dict, args, alpha)
                         imgnet_metrics = inf.eval_imagenet()
                         cinemanet_metrics, _, _ = inf.eval_cinemanet()
+                        mean_cnet_acc = sum(cinemanet_metrics.values()) / len(cinemanet_metrics)
 
                         metrics.update(imgnet_metrics)
                         metrics.update({f"{k}-zeroshot-val-top1": v for k,v in cinemanet_metrics.items()})
+                        metrics.update({"cinemanet-all_categories-avg-val-top1": mean_cnet_acc})
 
                         logging.info(
                             f"Eval Epoch: {epoch} "
