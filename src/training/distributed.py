@@ -78,6 +78,7 @@ def init_distributed_device(args):
         os.environ['RANK'] = str(args.rank)
         os.environ['WORLD_SIZE'] = str(args.world_size)
     elif is_using_distributed():
+        import datetime
         if 'SLURM_PROCID' in os.environ:
             # DDP via SLURM
             args.local_rank, args.rank, args.world_size = world_info_from_env()
@@ -90,13 +91,15 @@ def init_distributed_device(args):
                 init_method=args.dist_url,
                 world_size=args.world_size,
                 rank=args.rank,
+                timeout=datetime.timedelta(seconds=10_000)
             )
         else:
             # DDP via torchrun, torch.distributed.launch
             args.local_rank, _, _ = world_info_from_env()
             torch.distributed.init_process_group(
                 backend=args.dist_backend,
-                init_method=args.dist_url)
+                init_method=args.dist_url,
+                timeout=datetime.timedelta(seconds=10_000))
             args.world_size = torch.distributed.get_world_size()
             args.rank = torch.distributed.get_rank()
         args.distributed = True
