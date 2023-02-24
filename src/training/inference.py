@@ -1,5 +1,7 @@
 from upyog.all import *
 from open_clip import get_tokenizer
+from open_clip.pretrained import get_pretrained_cfg
+from open_clip.constants import OPENAI_DATASET_MEAN, OPENAI_DATASET_STD
 
 import torch
 
@@ -46,19 +48,6 @@ class ModelCfg:
 
 
 class InferenceMixin:
-    def compute_image_embeddings(
-        self,
-        img_files: Optional[List[PathLike]] = None,
-        img_folders: Optional[List[PathLike]] = None,
-        batch_size: Optional[int] = 16,
-        num_workers: int = 4,
-    ):
-        if img_files is None and img_folders is None:
-            raise RuntimeError
-
-        return compute_image_embeddings(
-            self.model, img_files, img_folders, batch_size or self.batch_size, num_workers)
-
     def eval_imagenet(
         self,
         path_imagenet = "/home/synopsis/datasets/ImageNet/validation/",
@@ -75,8 +64,8 @@ class InferenceMixin:
             self.batch_size, 4, path_imagenet, wandb_id, self.device)
 
         imagenet_data = {}
-        image_mean = getattr(self.model.visual, 'image_mean', None)
-        image_std = getattr(self.model.visual, 'image_std', None)
+        image_mean = self.model.visual.image_mean
+        image_std = self.model.visual.image_std
         preproc = image_transform(
             self.model.visual.image_size, False, image_mean, image_std)
         imagenet_data["imagenet-val"] = get_imagenet(args, (None, preproc), split="val")
@@ -96,8 +85,7 @@ class InferenceMixin:
         accuracies_per_label = {}
         inaccuracies_per_label = {}
 
-        # for category in TAXONOMY.keys():
-        for category in ["shot_framing", "color_tones"]:
+        for category in TAXONOMY.keys():
             if self.arch.endswith("-custom-text"):
                 taxonomy         = {category: TAXONOMY[category]}
                 reverse_taxonomy = {category: REVERSE_TAXONOMY[category]}
@@ -126,7 +114,9 @@ class InferenceModelFromDisk(InferenceMixin):
         pretrained: Optional[str],
         ckpt_path: Optional[str],
         batch_size: Optional[int] = 8,
-        # path_embedding: Optional[str],
+        # ...
+        path_embedding: Optional[PathLike] = None,
+        experiment_name: str = None,
     ):
         self.arch = arch
         self.device = device
@@ -134,6 +124,9 @@ class InferenceModelFromDisk(InferenceMixin):
         self.pretrained = pretrained
         self.ckpt_path = ckpt_path
         self.batch_size = batch_size
+        self.path_embedding = path_embedding
+        assert experiment_name, f"`experiment_name` required"
+        self.experiment_name = experiment_name
 
         self._check_args()
         self.model = self.load_model(self.alpha)
@@ -172,15 +165,20 @@ class InferenceModelFromDisk(InferenceMixin):
     def load_tokenizer(self):
         return get_tokenizer(self.arch)
 
-    def _create_embedding_filename(self, suffix: str):
+    def _create_embedding_filename(
+        self,
+        suffix: str,
+        save_dir = "/home/synopsis/datasets/serialised-datasets/CLIP/"
+    ) -> Path:
+
         save_dir = Path(save_dir)
         save_dir.mkdir(exist_ok=True)
         filename = f"{self.arch}--{self.pretrained}"
         if self.ckpt_path:
             filename = f"{filename}--finetuned-alpha-{str(self.alpha)}"
-        filename = f"{filename}__{suffix}"
+        filename = f"{filename}__{suffix}.feather"
 
-        return filename
+        return save_dir / filename
 
     def _get_eval_args(self, batch_size, num_workers, path_imagenet, wandb_id, device):
         return SimpleNamespace(
@@ -202,6 +200,60 @@ class InferenceModelFromDisk(InferenceMixin):
             rank = 0,
         )
 
+    def get_image_embeddings(
+        self,
+        img_files: Optional[List[PathLike]] = None,
+        img_folders: Optional[List[PathLike]] = None,
+        batch_size: Optional[int] = 16,
+        num_workers: int = 4,
+        save_dir: Optional[PathLike] = "/home/synopsis/datasets/serialised-datasets/CLIP/CLIP-Embeddings-Cached/",
+    ) -> pd.DataFrame:
+        """
+        If we have passed `path_embeddings` on init, reads the cached embeddings and returns them
+        Else, we compute embeddings, save them to disk, and return them
+        """
+        if self.path_embedding is not None:
+            logger.info(f"Reading pre-computed embeddings")
+            return pd.read_feather(self.path_embedding)
+
+        else:
+            if save_dir is None:
+                raise ValueError(f"Enter a `save_dir` to save the embeddings in")
+
+        save_dir = Path(save_dir)
+        if img_files is None and img_folders is None:
+            raise RuntimeError(f"Enter `img_files` and/or `img_folders` to point to images that must be analysed")
+
+        df = compute_image_embeddings(
+            self.model, img_files, img_folders, batch_size or self.batch_size, num_workers)
+
+        save_path = self._create_embedding_filename(self.experiment_name, save_dir)
+        df.to_feather(save_path)
+        self.path_embedding = save_path
+        logger.success(f"Saved cached embeddings to {save_path}")
+
+        return df
+
+    def eval_cinemanet(self) -> Tuple[dict, dict, dict]:
+        self.cnet_acc, self.cnet_acc_per_label, self.cnet_inacc_per_label = super().eval_cinemanet()
+        return self.cnet_acc, self.cnet_acc_per_label, self.cnet_inacc_per_label
+
+    def eval_imagenet(self, path_imagenet="/home/synopsis/datasets/ImageNet/validation/", wandb_id=None) -> dict:
+        self.imgnet_metrics = super().eval_imagenet(path_imagenet, wandb_id)
+        return self.imgnet_metrics
+
+    def __repr__(self) -> str:
+        pe = f"'{self.path_embedding}'" if self.path_embedding else None
+        return f"""    {self.__class__.__name__}(
+                   arch = '{self.arch}',
+                 device = {self.device},
+                  alpha = {self.alpha},
+             pretrained = '{self.pretrained}',
+              ckpt_path = '{self.ckpt_path}',
+         path_embedding = {pe},
+        experiment_name = '{self.experiment_name}',
+    )
+"""
 
 def unwrap_model(model):
     return model.module if hasattr(model, 'module') else model
@@ -210,6 +262,11 @@ class InferenceModel(InferenceMixin):
     def __init__(self, model, tokenizer, orig_state_dict, args, alpha):
         self.model = unwrap_model(model)
         self.model.device = torch.device(args.device)
+
+        if not hasattr(self.model.visual, "image_mean"):
+            pretrained_cfg = get_pretrained_cfg(args.model, args.pretrained)
+            self.model.visual.image_mean = pretrained_cfg.get('mean', None) or OPENAI_DATASET_MEAN
+            self.model.visual.image_std = pretrained_cfg.get('std', None) or OPENAI_DATASET_STD
 
         self.restore_state_dict = {
             k:v.detach().cpu() for k,v in unwrap_model(model).state_dict().items()}
