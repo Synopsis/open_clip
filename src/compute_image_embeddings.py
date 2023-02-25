@@ -3,7 +3,7 @@ import torch
 
 from upyog.all import *
 from upyog.cli import Param as P
-from cinemanet.CLIP.inference import EVALUATION_PROMPTS
+
 
 if torch.cuda.is_available():
     # This enables tf32 on Ampere GPUs which is only 8% slower than
@@ -41,7 +41,7 @@ def run_embeddings(
     batch_size:    P("Batch Size", int) = 32,
     num_workers:   P("DataLoader num workers", int) = 4,
     device:        P("Device", int) = 0,
-    save_dir:      P("Path to save the DataFrame to", str) = "/home/synopsis/datasets/serialised-datasets/CLIP/",
+    save_dir:      P("Path to save the DataFrame to", str) = "/home/synopsis/datasets/serialised-datasets/CLIP/CLIP-Embeddings-Cached/",
 ) -> Tuple[InferenceModelFromDisk, pd.DataFrame]:
 
     args = deepcopy(locals())
