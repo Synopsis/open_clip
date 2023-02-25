@@ -144,9 +144,15 @@ class InferenceModelFromDisk(InferenceMixin):
     def _check_args(self):
         if self.pretrained and self.ckpt_path:
             if self.alpha is None:
-                raise RuntimeError(
+                raise ValueError(
                     f"You provided a pretrained model & checkpoint path to blend, but did not "
                     f"provide alpha values to do the blending"
+                )
+
+        if self.ckpt_path is None:
+            if self.alpha is not None:
+                raise ValueError(
+                    f"Attempting to load pretrained model but `alpha` value is also given. Set it to None if you'd like to proceed"
                 )
 
     def load_model(self, alpha: Optional[float]):
@@ -156,6 +162,8 @@ class InferenceModelFromDisk(InferenceMixin):
             logger.info(f"Loaded interpolated weights at Alpha={self.alpha}")
 
         else:
+            assert self.ckpt_path is None
+            assert self.alpha is None
             model = load_model(
                 self.arch, self.device, self.pretrained, self.ckpt_path)
             logger.info(f"Loaded pretrained model")
@@ -243,14 +251,15 @@ class InferenceModelFromDisk(InferenceMixin):
         return self.imgnet_metrics
 
     def __repr__(self) -> str:
-        pe = f"'{self.path_embedding}'" if self.path_embedding else None
+        path_embed = f"'{self.path_embedding}'" if self.path_embedding else None
+        path_ckpt = f"'{self.ckpt_path}'" if self.ckpt_path else None
         return f"""    {self.__class__.__name__}(
                    arch = '{self.arch}',
                  device = {self.device},
                   alpha = {self.alpha},
              pretrained = '{self.pretrained}',
-              ckpt_path = '{self.ckpt_path}',
-         path_embedding = {pe},
+              ckpt_path = {path_ckpt},
+         path_embedding = {path_embed},
         experiment_name = '{self.experiment_name}',
     )
 """
