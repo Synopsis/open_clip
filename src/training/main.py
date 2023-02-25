@@ -400,9 +400,11 @@ def main(args):
         if args.val_data is not None:
             args.val_sz = data["val"].dataloader.num_samples
         # you will have to configure this for your project!
+        img_size: int = unwrap_model(model).visual.image_size[0]
+        wandb_name = f"{model_name_safe}__imgsz-{img_size}__num-train-lyr-{args.lock_image_unlocked_groups}__{date_str}"
         wandb.init(
             project=args.wandb_project_name,
-            name=args.name,
+            name=wandb_name,
             id=args.name,
             notes=args.wandb_notes,
             tags=[],
