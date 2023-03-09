@@ -500,6 +500,48 @@ def main(args):
                 os.replace(tmp_save_path, latest_save_path)
 
     if args.wandb and is_master(args):
+        # TODO: Log prompt matches
+
+        from cinemanet.CLIP.inference import get_top_matches, view_top_matches
+        from cinemanet.CLIP.inference import (
+            EVALUATION_PROMPTS, CELEBRITY_PROMPTS, PROP_PROMPTS)
+        from .inference import InferenceModel
+        from upyog.all import load_json, tqdm
+
+        restore_state_dict = {
+            k:v.detach().cpu() for k,v in unwrap_model(model).state_dict().items()}
+
+        model.eval()
+        pbar = tqdm([0.0, 0.5, 0.75, 1.0])
+        N = 21
+        for alpha in pbar:
+            pbar.set_description(f"Evaluating @ α={alpha}")
+            base_log_key = f"val/prompt_matches/alpha={alpha}"
+            log_images = {}
+
+            # Create model
+            unwrap_model(model).load_state_dict(restore_state_dict)
+            inf = InferenceModel(model, tokenizer, orig_state_dict, args, alpha)
+
+            # Get embeddings
+            files = load_json("/home/synopsis/git/CinemaNet-Training/assets/shotdeck_sample_110k.json")
+            df = inf.get_image_embeddings(files, batch_size=args.batch_size, num_workers=args.workers)
+            embeddings = np.stack(df.embedding)
+
+            # Eval prompts
+            for prompts, prompt_category in [
+                (EVALUATION_PROMPTS, "Evaluation prompts"),
+                (CELEBRITY_PROMPTS, "Celebrity prompts"),
+                (PROP_PROMPTS, "Prop prompts"),
+            ]:
+                for prompt in tqdm(prompts, prompt_category):
+                    top_matches = get_top_matches(prompt, inf.model, embeddings, inf.tokenizer)
+                    grid = view_top_matches(df, top_matches, N)
+
+                    log_images[f"{base_log_key}/{prompt_category}/{prompt}"] = grid
+            log_images = {k: wandb.Image(v) for k,v in log_images.items()}
+            wandb.log(log_images)
+
         wandb.finish()
 
     # run a final sync.
