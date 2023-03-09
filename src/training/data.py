@@ -550,9 +550,9 @@ def get_data(args, preprocess_fns, epoch=0, tokenizer=None):
             args.train_data, preprocess_train,
             img_key = args.csv_img_key,
             caption_key = args.csv_caption_key,
-            sep = args.csv_separator,  # Ignored
             tokenizer = tokenizer,
             schema_path = args.schema_path,
+            thresh = args.caption_thresh,
         )
 
         # FIXME: Duplicated code, but this is more explicit.
