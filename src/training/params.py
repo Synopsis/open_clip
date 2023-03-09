@@ -67,9 +67,21 @@ def parse_args(args):
     )
     parser.add_argument(
         "--dataset-type",
-        choices=["webdataset", "csv", "synthetic", "auto", "csv_multicaption"],
+        choices=["webdataset", "csv", "synthetic", "auto", "csv_multicaption", "cinema_dynamic_caption"],
         default="auto",
         help="Which type of dataset to process."
+    )
+    parser.add_argument(
+        "--schema-path",
+        type=str,
+        default=None,
+        help="Path to the schema file that helps load dynamic captions (only applicable if using `cinema_dynamic_caption` dataset)",
+    )
+    parser.add_argument(
+        "--caption-thresh",
+        type=float,
+        default=0.85,
+        help="Threshold value for auto captions (only applicable if using `cinema_dynamic_caption` dataset)",
     )
     parser.add_argument(
         "--dataset-resampled",

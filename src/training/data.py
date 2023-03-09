@@ -528,8 +528,8 @@ def get_data(args, preprocess_fns, epoch=0, tokenizer=None):
     preprocess_train, preprocess_val = preprocess_fns
     data = {}
 
-    if args.train_data and args.dataset_type == "csv_multicaption":
-        import os
+    if args.dataset_type in ["cinema_dynamic_caption", "csv_multicaption"]:
+        import sys
 
         sys.path.append("/home/synopsis/git/CinemaNet-Training/")
         sys.path.append("/home/synopsis/git/YOLOX-Custom/")
@@ -540,6 +540,43 @@ def get_data(args, preprocess_fns, epoch=0, tokenizer=None):
         sys.path.append("/home/synopsis/git/cinemanet-multitask-classification/")
         sys.path.append("/home/synopsis/git/Synopsis.py")
 
+    if args.train_data and args.dataset_type == "cinema_dynamic_caption":
+        if args.schema_path is None:
+            raise ValueError(f"Attempting to load dynamic cinema captions dataset but no `--schema-path` is not specified")
+
+        from cinemanet.CLIP.dataset import CinemaNetDynamicCaptionDataset
+
+        dataset = CinemaNetDynamicCaptionDataset(
+            args.train_data, preprocess_train,
+            img_key = args.csv_img_key,
+            caption_key = args.csv_caption_key,
+            sep = args.csv_separator,  # Ignored
+            tokenizer = tokenizer,
+            schema_path = args.schema_path,
+        )
+
+        # FIXME: Duplicated code, but this is more explicit.
+        is_train = True
+        num_samples = len(dataset)
+        sampler = DistributedSampler(dataset) if args.distributed and is_train else None
+        shuffle = is_train and sampler is None
+
+        dataloader = DataLoader(
+            dataset,
+            batch_size=args.batch_size,
+            shuffle=shuffle,
+            num_workers=args.workers,
+            pin_memory=True,
+            sampler=sampler,
+            drop_last=is_train,
+        )
+        dataloader.num_samples = num_samples
+        dataloader.num_batches = len(dataloader)
+
+        data["train"] = DataInfo(dataloader, sampler)
+
+
+    if args.train_data and args.dataset_type == "csv_multicaption":
         from cinemanet.CLIP.dataset import CinemaNetCsvDataset
 
         dataset = CinemaNetCsvDataset(
