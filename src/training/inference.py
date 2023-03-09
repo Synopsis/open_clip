@@ -26,7 +26,9 @@ if True:
     sys.path.append("/home/synopsis/git/Synopsis.py/")
 
 
-from cinemanet.CLIP.inference import compute_image_embeddings
+from cinemanet.CLIP.inference import compute_image_embeddings, get_top_matches, view_top_matches
+from cinemanet.CLIP.inference import (
+    EVALUATION_PROMPTS, CELEBRITY_PROMPTS, PROP_PROMPTS, EMOTION_PROMPTS)
 from cinemanet.CLIP.utils import load_model, load_interpolated_model
 from cinemanet.CLIP.mapping import (
     TAXONOMY, TAXONOMY_CUSTOM_TOKENS, REVERSE_TAXONOMY, REVERSE_TAXONOMY_CUSTOM_TOKENS
@@ -34,7 +36,7 @@ from cinemanet.CLIP.mapping import (
 from cinemanet.CLIP.inference import run_image_classification
 
 
-__all__ = ["ModelCfg", "InferenceModel"]
+__all__ = ["ModelCfg", "InferenceModel", "InferenceModelFromDisk"]
 
 
 @dataclass
@@ -180,7 +182,7 @@ class InferenceModelFromDisk(InferenceMixin):
     ) -> Path:
 
         save_dir = Path(save_dir)
-        save_dir.mkdir(exist_ok=True)
+        save_dir.mkdir(exist_ok=True, parents=True)
         filename = f"{self.arch}--{self.pretrained}"
         if self.ckpt_path:
             filename = f"{filename}--finetuned-alpha-{str(self.alpha)}"
@@ -306,3 +308,13 @@ class InferenceModel(InferenceMixin):
 
     def _get_eval_args(self, *args, **kwargs):
         return self.args
+
+    def get_image_embeddings(
+        self,
+        img_files: Optional[List[PathLike]] = None,
+        img_folders: Optional[List[PathLike]] = None,
+        batch_size: Optional[int] = 16,
+        num_workers: int = 4,
+    ):
+        return compute_image_embeddings(
+            self.model, img_files, img_folders, batch_size, num_workers, "Computing ShotDeck Embeddings...")
