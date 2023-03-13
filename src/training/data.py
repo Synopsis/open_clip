@@ -549,7 +549,8 @@ def get_data(args, preprocess_fns, epoch=0, tokenizer=None):
         dataset = CinemaNetDynamicCaptionDataset(
             args.train_data, preprocess_train,
             img_key = args.csv_img_key,
-            caption_key = args.csv_caption_key,
+            caption_key = args.dynamic_caption_keys,
+            tags_key = args.tags_key,
             tokenizer = tokenizer,
             schema_path = args.schema_path,
             thresh = args.caption_thresh,
@@ -576,7 +577,7 @@ def get_data(args, preprocess_fns, epoch=0, tokenizer=None):
         data["train"] = DataInfo(dataloader, sampler)
 
 
-    if args.train_data and args.dataset_type == "csv_multicaption":
+    elif args.train_data and args.dataset_type == "csv_multicaption":
         from cinemanet.CLIP.dataset import CinemaNetCsvDataset
 
         dataset = CinemaNetCsvDataset(

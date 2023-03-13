@@ -84,6 +84,20 @@ def parse_args(args):
         help="Threshold value for auto captions (only applicable if using `cinema_dynamic_caption` dataset)",
     )
     parser.add_argument(
+        "--dynamic-caption-keys",
+        type=str,
+        nargs="+",
+        default=None,
+        help="For `cinema_dynamic_caption` datasets, the name of the caption columns."
+    )
+    parser.add_argument(
+        "--tags-key",
+        type=str,
+        nargs="+",
+        default=None,
+        help="For `cinema_dynamic_caption` datasets, the name of the column with meta tags."
+    )
+    parser.add_argument(
         "--dataset-resampled",
         default=False,
         action="store_true",
