@@ -544,7 +544,7 @@ def get_data(args, preprocess_fns, epoch=0, tokenizer=None):
         if args.schema_path is None:
             raise ValueError(f"Attempting to load dynamic cinema captions dataset but no `--schema-path` is not specified")
 
-        from cinemanet.CLIP.dataset import CinemaNetDynamicCaptionDataset
+        from cinemanet_clip.dataset import CinemaNetDynamicCaptionDataset
 
         dataset = CinemaNetDynamicCaptionDataset(
             args.train_data, preprocess_train,
@@ -579,7 +579,7 @@ def get_data(args, preprocess_fns, epoch=0, tokenizer=None):
 
 
     elif args.train_data and args.dataset_type == "csv_multicaption":
-        from cinemanet.CLIP.dataset import CinemaNetCsvDataset
+        from cinemanet_clip.dataset import CinemaNetCsvDataset
 
         dataset = CinemaNetCsvDataset(
             args.train_data, preprocess_train,

@@ -247,9 +247,9 @@ def evaluate_cinemanet(model, args, epoch):
         sys.path.append("/home/synopsis/git/cinemanet-multitask-classification/")
         sys.path.append("/home/synopsis/git/Synopsis.py/")
 
-    from cinemanet.CLIP.inference import run_image_classification
-    from cinemanet.CLIP.utils import interpolate_weights
-    from cinemanet.CLIP.mapping import TAXONOMY
+    from cinemanet_clip.inference import run_cinemanet_eval
+    from cinemanet_clip.utils.model_loading import interpolate_weights
+    from cinemanet_clip.mapping import TAXONOMY
     from open_clip import get_tokenizer
 
 
@@ -275,7 +275,7 @@ def evaluate_cinemanet(model, args, epoch):
         unwrap_model(model).load_state_dict(weights)
         accuracies = {}
         for category in TAXONOMY.keys():
-            acc,_,_,_ = run_image_classification(model, tokenizer, category, batch_size=8, verbose=False)
+            acc,_,_,_,_ = run_cinemanet_eval(model, tokenizer, category, batch_size=8, verbose=False)
             accuracies[category] = acc
             if args.wandb:
                 wandb.log({

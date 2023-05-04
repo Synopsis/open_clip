@@ -17,6 +17,7 @@ if torch.cuda.is_available():
 if True:
     import sys
     sys.path.append("/home/synopsis/git/CinemaNet-Training/")
+    sys.path.append("/home/synopsis/git/CinemaNet-CLIP/")
     sys.path.append("/home/synopsis/git/YOLOX-Custom/")
     sys.path.append("/home/synopsis/git/YOLO-CinemaNet/")
     sys.path.append("/home/synopsis/git/icevision/")
@@ -26,15 +27,12 @@ if True:
     sys.path.append("/home/synopsis/git/Synopsis.py/")
 
 
-from cinemanet.CLIP.inference import compute_image_embeddings, get_top_matches, view_top_matches
-from cinemanet.CLIP.inference import (
-    EVALUATION_PROMPTS, CELEBRITY_PROMPTS, PROP_PROMPTS, EMOTION_PROMPTS)
-from cinemanet.CLIP.utils import load_model, load_interpolated_model
-from cinemanet.CLIP.mapping import (
+from cinemanet_clip.inference import compute_image_embeddings, run_cinemanet_eval
+from cinemanet_clip.utils.model_loading import (
+    load_interpolated_model, load_model, interpolate_weights)
+from cinemanet_clip.mapping import (
     TAXONOMY, TAXONOMY_CUSTOM_TOKENS, REVERSE_TAXONOMY, REVERSE_TAXONOMY_CUSTOM_TOKENS
 )
-from cinemanet.CLIP.inference import run_image_classification
-
 
 __all__ = ["ModelCfg", "InferenceModel", "InferenceModelFromDisk"]
 
@@ -95,7 +93,7 @@ class InferenceMixin:
                 taxonomy         = {category: TAXONOMY_CUSTOM_TOKENS[category]}
                 reverse_taxonomy = {category: REVERSE_TAXONOMY_CUSTOM_TOKENS[category]}
 
-            acc,_,_,acc_per_label,inacc_per_label = run_image_classification(
+            acc,_,_,acc_per_label,inacc_per_label = run_cinemanet_eval(
                 self.model, self.tokenizer, category, batch_size=self.batch_size,
                 verbose=False, taxonomy=taxonomy, reverse_taxonomy=reverse_taxonomy,
             )
@@ -296,8 +294,6 @@ class InferenceModel(InferenceMixin):
         self.ckpt_path = None
         self.pretrained = args.pretrained
         self.arch = args.model
-
-        from cinemanet.CLIP.utils import interpolate_weights
 
         weights = interpolate_weights(
             {k:v.detach().cpu() for k,v in unwrap_model(self.model).state_dict().items()},

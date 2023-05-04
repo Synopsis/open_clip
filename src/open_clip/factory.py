@@ -92,7 +92,7 @@ def get_tokenizer(model_name, args=None):
                 args.custom_text_encoder = True
 
     if args and args.custom_text_encoder:
-        from cinemanet.CLIP.text_modelling import update_tokenizer
+        from cinemanet_clip.text_modelling import update_tokenizer
 
         tokenizer = HFTokenizer(config['text_cfg']['hf_tokenizer_name'])
         placeholder_token_ids = update_tokenizer(tokenizer)

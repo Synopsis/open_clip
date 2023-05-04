@@ -31,10 +31,9 @@ if True:
     sys.path.append("/home/synopsis/git/cinemanet-multitask-classification/")
     sys.path.append("/home/synopsis/git/Synopsis.py/")
 
-from cinemanet.CLIP.inference import run_image_classification
-from cinemanet.CLIP.utils import interpolate_weights
-from cinemanet.CLIP.mapping import TAXONOMY, TAXONOMY_CUSTOM_TOKENS, REVERSE_TAXONOMY, REVERSE_TAXONOMY_CUSTOM_TOKENS
-from cinemanet.CLIP.utils import load_model
+from cinemanet_clip.inference import run_cinemanet_eval
+from cinemanet_clip.utils.model_loading import interpolate_weights, load_model
+from cinemanet_clip.mapping import TAXONOMY, TAXONOMY_CUSTOM_TOKENS, REVERSE_TAXONOMY, REVERSE_TAXONOMY_CUSTOM_TOKENS
 
 
 @call_parse
@@ -140,7 +139,7 @@ def evaluate_model(
                     taxonomy         = {category: TAXONOMY_CUSTOM_TOKENS[category]}
                     reverse_taxonomy = {category: REVERSE_TAXONOMY_CUSTOM_TOKENS[category]}
 
-                acc,_,_,_,_ = run_image_classification(
+                acc,_,_,_,_ = run_cinemanet_eval(
                     model, tokenizer, category, batch_size=8, verbose=False,
                     taxonomy=taxonomy, reverse_taxonomy=reverse_taxonomy,
                 )

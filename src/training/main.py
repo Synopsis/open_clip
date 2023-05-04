@@ -256,7 +256,7 @@ def main(args):
     rich.print(f"Preprocess Val:\n{preprocess_val}\n")
 
     if args and args.custom_text_encoder:
-        from cinemanet.CLIP.text_modelling import update_text_encoder
+        from cinemanet_clip.text_modelling import update_text_encoder
 
         model = update_text_encoder(model, tokenizer, tokenizer.placeholder_token_ids)
         logging.info(f"Updated text encoder")
@@ -502,8 +502,8 @@ def main(args):
     if args.wandb and is_master(args):
         # TODO: Log prompt matches
 
-        from cinemanet.CLIP.inference import get_top_matches, view_top_matches
-        from cinemanet.CLIP.inference import (
+        from cinemanet_clip.inference import (
+            get_top_matches, view_top_matches,
             EVALUATION_PROMPTS, CELEBRITY_PROMPTS, PROP_PROMPTS)
         from .inference import InferenceModel
         from upyog.all import load_json, tqdm
