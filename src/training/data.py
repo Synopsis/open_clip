@@ -554,6 +554,7 @@ def get_data(args, preprocess_fns, epoch=0, tokenizer=None):
             tokenizer = tokenizer,
             schema_path = args.schema_path,
             thresh = args.caption_thresh,
+            use_aliases = args.use_dynamic_aliases,
         )
 
         # FIXME: Duplicated code, but this is more explicit.
