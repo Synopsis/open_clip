@@ -450,7 +450,7 @@ def main(args):
                     k:v.detach().cpu() for k,v in unwrap_model(model).state_dict().items()}
 
                 if is_master(args):
-                    from inference import InferenceModel
+                    from inference import InferenceModelWhileTraining
                     alphas = [0.5, 0.75, 1.0]
                     if completed_epoch == 1:
                         alphas.insert(0, 0.0)
@@ -458,7 +458,7 @@ def main(args):
                     for alpha in alphas:
                         metrics = {}
                         unwrap_model(model).load_state_dict(restore_state_dict)
-                        inf = InferenceModel(model, tokenizer, orig_state_dict, args, alpha)
+                        inf = InferenceModelWhileTraining(model, tokenizer, orig_state_dict, args, alpha)
                         imgnet_metrics = inf.eval_imagenet()
                         cinemanet_metrics, _, _, confusion_matrices = inf.eval_cinemanet(args.cinemanet_eval_categories)
                         mean_cnet_acc = sum(cinemanet_metrics.values()) / len(cinemanet_metrics)
@@ -502,7 +502,7 @@ def main(args):
         from cinemanet_clip.inference import (
             get_top_matches, view_top_matches,
             EVALUATION_PROMPTS, CELEBRITY_PROMPTS, PROP_PROMPTS)
-        from inference import InferenceModel
+        from inference import InferenceModelWhileTraining
         from upyog.all import load_json, tqdm, Path
         from synopsis_labelling.utils.file_fetching import find_shotdeck_thumb_file_on_disk
 
@@ -519,7 +519,7 @@ def main(args):
 
             # Create model
             unwrap_model(model).load_state_dict(restore_state_dict)
-            inf = InferenceModel(model, tokenizer, orig_state_dict, args, alpha)
+            inf = InferenceModelWhileTraining(model, tokenizer, orig_state_dict, args, alpha)
 
             # Get embeddings
             filepaths = load_json("/home/synopsis/git/CinemaNet-Training/assets/shotdeck_sample_110k.json")

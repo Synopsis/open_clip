@@ -34,7 +34,7 @@ from cinemanet_clip.mapping import (
     TAXONOMY, TAXONOMY_CUSTOM_TOKENS, REVERSE_TAXONOMY, REVERSE_TAXONOMY_CUSTOM_TOKENS
 )
 
-__all__ = ["ModelCfg", "InferenceModel", "InferenceModelFromDisk"]
+__all__ = ["ModelCfg", "InferenceModel", "InferenceModelWhileTraining"]
 
 
 @dataclass
@@ -45,6 +45,25 @@ class ModelCfg:
     pretrained: Optional[str]
     ckpt_path: Optional[str]
     # path_embedding: Optional[str]
+
+
+def _load_params_txt(file_path):
+    "Load the `params.txt` file saved by a training run"
+    config_dict = {}
+
+    with open(file_path, 'r') as file:
+        for line in file:
+            line = line.strip()
+
+            if not line or line.startswith("#"):
+                continue
+
+            key_value = line.split(": ", 1)
+            key = key_value[0]
+            value = key_value[1] if len(key_value) > 1 else ""
+            config_dict[key] = value
+
+    return config_dict
 
 
 class InferenceMixin:
@@ -108,26 +127,46 @@ class InferenceMixin:
         return accuracies_overall, accuracies_per_label, inaccuracies_per_label, confusion_matrices
 
 
-class InferenceModelFromDisk(InferenceMixin):
+class InferenceModel(InferenceMixin):
 
     def __init__(
         self,
         arch: str,
         device: Union[str, int, torch.device],
         alpha: Optional[float],
-        pretrained: Optional[str],
+        pretrained: str,
         ckpt_path: Optional[str],
-        batch_size: Optional[int] = 8,
+        batch_size: int = 8,
         # ...
         path_embedding: Optional[PathLike] = None,
         experiment_name: str = None,
     ):
+        """
+        Helper class to run inference easily for:
+        1) Pretrained models
+        2) Trained model that can be blended with a pretrained model
+
+        Some key methods:
+        `self.eval_cinemanet()`
+        `self.eval_imagenet()`
+        `self.get_image_embeddings()`
+
+        ARGS:
+            arch:       Name of the the architecture. Must be one of `open_clip.list_models()`
+            device:     Which device to load the model on to
+            pretrained: Name of the pretrained checkpoint to load from. See `open_clip.list_pretrained()` for options.
+            alpha:      (Optional) used in conjunction with `ckpt_path` to interpolate the checkpoint with pretrained model
+            ckpt_path:  (Optional) Path to a saved `.ckpt` file to load the weights from. If not provided, a pretrained model is loaded
+            batch_size: Inference batch size
+        """
         self.arch = arch
         self.device = device
         self._alpha = alpha
         self.pretrained = pretrained
         self.ckpt_path = ckpt_path
         self.batch_size = batch_size
+
+        # FIXME: Why the fuck are we taking `path_embedding` and `experiment_name`. That logic should be outside of this class??
         self.path_embedding = path_embedding
         assert experiment_name, f"`experiment_name` required"
         self.experiment_name = experiment_name
@@ -135,6 +174,22 @@ class InferenceModelFromDisk(InferenceMixin):
         self._check_args()
         self.model = self.load_model(self.alpha)
         self.tokenizer = self.load_tokenizer()
+
+    @classmethod
+    def from_ckpt_path(
+        cls, ckpt_path, device, alpha, batch_size, path_embedding, experiment_name
+    ):
+        ckpt_path = Path(ckpt_path)
+        assert ckpt_path.parent.name == "checkpoints"
+        root_dir = ckpt_path.parent.parent
+        cfg = _load_params_txt(root_dir / "params.txt")
+
+        arch = cfg["model"]
+        pretrained = cfg["pretrained"]
+
+        return cls(
+            arch, device, alpha, pretrained, ckpt_path, batch_size, path_embedding, experiment_name
+        )
 
     @property
     def alpha(self):
@@ -228,21 +283,20 @@ class InferenceModelFromDisk(InferenceMixin):
             logger.info(f"Reading pre-computed embeddings")
             return pd.read_feather(self.path_embedding)
 
-        else:
-            if save_dir is None:
-                raise ValueError(f"Enter a `save_dir` to save the embeddings in")
-
-        save_dir = Path(save_dir)
         if img_files is None and img_folders is None:
             raise RuntimeError(f"Enter `img_files` and/or `img_folders` to point to images that must be analysed")
 
         df = compute_image_embeddings(
             self.model, img_files, img_folders, batch_size or self.batch_size, num_workers)
 
-        save_path = self._create_embedding_filename(self.experiment_name, save_dir)
-        df.to_feather(save_path)
-        self.path_embedding = save_path
-        logger.success(f"Saved cached embeddings to {save_path}")
+        if save_dir:
+            save_dir = Path(save_dir)
+            save_path = self._create_embedding_filename(self.experiment_name, save_dir)
+            df.to_feather(save_path)
+            self.path_embedding = save_path
+            logger.success(f"Saved cached embeddings to {save_path}")
+        else:
+            logger.warning(f"No 'save_dir' given. Embeddings are not being cached!")
 
         return df
 
@@ -271,7 +325,7 @@ class InferenceModelFromDisk(InferenceMixin):
 def unwrap_model(model):
     return model.module if hasattr(model, 'module') else model
 
-class InferenceModel(InferenceMixin):
+class InferenceModelWhileTraining(InferenceMixin):
     def __init__(self, model, tokenizer, orig_state_dict, args, alpha):
         self.model = unwrap_model(model)
         self.model.device = torch.device(args.device)
