@@ -134,6 +134,13 @@ def parse_args(args):
         help="Path to imagenet val set for conducting zero shot evaluation.",
     )
     parser.add_argument(
+        "--cinemanet-eval-categories",
+        type=str,
+        default=None,
+        nargs='+',
+        help="List of cinemanet categories to evaluate. If not specified, all are evaluated",
+    )
+    parser.add_argument(
         "--imagenet-v2",
         type=str,
         default=None,

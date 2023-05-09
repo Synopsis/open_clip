@@ -72,7 +72,7 @@ class InferenceMixin:
 
         return evaluate(self.model, imagenet_data, 1, args)
 
-    def eval_cinemanet(self) -> Tuple[dict, dict, dict]:
+    def eval_cinemanet(self, categories: Optional[List[str]] = None) -> Tuple[dict, dict, dict]:
         """
         Run inference on the CinemaNet validation sets
 
@@ -85,7 +85,8 @@ class InferenceMixin:
         accuracies_per_label = {}
         inaccuracies_per_label = {}
 
-        for category in TAXONOMY.keys():
+        categories = categories or sorted(TAXONOMY.keys())
+        for category in categories:
             if self.arch.endswith("-custom-text"):
                 taxonomy         = {category: TAXONOMY[category]}
                 reverse_taxonomy = {category: REVERSE_TAXONOMY[category]}
@@ -93,7 +94,8 @@ class InferenceMixin:
                 taxonomy         = {category: TAXONOMY_CUSTOM_TOKENS[category]}
                 reverse_taxonomy = {category: REVERSE_TAXONOMY_CUSTOM_TOKENS[category]}
 
-            acc,_,_,acc_per_label,inacc_per_label = run_cinemanet_eval(
+            # TODO: Log confusion matrix
+            acc,_,_,acc_per_label,inacc_per_label,confusion_matrix = run_cinemanet_eval(
                 self.model, self.tokenizer, category, batch_size=self.batch_size,
                 verbose=False, taxonomy=taxonomy, reverse_taxonomy=reverse_taxonomy,
             )
