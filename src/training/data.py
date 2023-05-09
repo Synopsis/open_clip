@@ -528,10 +528,11 @@ def get_data(args, preprocess_fns, epoch=0, tokenizer=None):
     preprocess_train, preprocess_val = preprocess_fns
     data = {}
 
-    if args.dataset_type in ["cinema_dynamic_caption", "csv_multicaption"]:
+    if "cinema" in args.dataset_type:
         import sys
 
         sys.path.append("/home/synopsis/git/CinemaNet-Training/")
+        sys.path.append("/home/synopsis/git/CinemaNet-CLIP/")
         sys.path.append("/home/synopsis/git/YOLOX-Custom/")
         sys.path.append("/home/synopsis/git/YOLO-CinemaNet/")
         sys.path.append("/home/synopsis/git/icevision/")
@@ -578,18 +579,28 @@ def get_data(args, preprocess_fns, epoch=0, tokenizer=None):
         data["train"] = DataInfo(dataloader, sampler)
 
 
-    elif args.train_data and args.dataset_type == "csv_multicaption":
-        from cinemanet_clip.dataset import CinemaNetCsvDataset
+    elif args.train_data and args.dataset_type in ["cinema_single_caption", "cinema_multi_caption"]:
+        from cinemanet_clip.dataset import CinemaNetSingleCaptionDataset, CinemaNetMultiCaptionDataset
 
-        dataset = CinemaNetCsvDataset(
-            args.train_data, preprocess_train,
-            img_key=args.csv_img_key,
-            caption_key=args.csv_caption_key,
-            sep=args.csv_separator,
-            tokenizer=tokenizer
-        )
+        if args.dataset_type == "cinema_single_caption":
+            dataset = CinemaNetSingleCaptionDataset(
+                path_feather_file = args.train_data,
+                       transforms = preprocess_train,
+                          img_key = args.csv_img_key,
+                      caption_key = args.csv_caption_key,
+                        tokenizer = tokenizer
+            )
 
-        # FIXME: Duplicated code, but this is more explicit.
+        elif args.dataset_type == "cinema_multi_caption":
+            dataset = CinemaNetMultiCaptionDataset(
+                path_feather_file = args.train_data,
+                       transforms = preprocess_train,
+                          img_key = args.csv_img_key,
+                      caption_key = args.csv_caption_key,
+                        tokenizer = tokenizer
+            )
+
+        # NOTE: Duplicated code, but this is more explicit.
         is_train = True
         num_samples = len(dataset)
         sampler = DistributedSampler(dataset) if args.distributed and is_train else None
