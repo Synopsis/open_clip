@@ -458,12 +458,17 @@ def main(args):
                         metrics = {}
                         unwrap_model(model).load_state_dict(restore_state_dict)
                         inf = InferenceModelWhileTraining(model, tokenizer, orig_state_dict, args, alpha)
-                        imgnet_metrics = inf.eval_imagenet()
-                        cinemanet_metrics, _, _, confusion_matrices = inf.eval_cinemanet(args.cinemanet_eval_categories)
-                        mean_cnet_acc = sum(cinemanet_metrics.values()) / len(cinemanet_metrics)
 
+                        # Run evaluation on ImageNet + CinemaNet + ShotDeck Datasets
+                        imgnet_metrics = inf.eval_imagenet()
+                        cinemanet_metrics, _, _, cinemanet_confusion_matrices = inf.eval_cinemanet(args.cinemanet_eval_categories)
+                        mean_cnet_acc = sum(cinemanet_metrics.values()) / len(cinemanet_metrics)
+                        shotdeck_clip_metrics, _, _, shotdeck_clip_confusion_matrices = inf.eval_shotdeck_clip_datasets()
+
+                        # Log Metrics
                         metrics.update(imgnet_metrics)
                         metrics.update({f"{k}-zeroshot-val-top1": v for k,v in cinemanet_metrics.items()})
+                        metrics.update({f"shotdeck-{k}-zeroshot-val-top1": v for k,v in shotdeck_clip_metrics.items()})
                         metrics.update({"cinemanet-all_categories-avg-val-top1": mean_cnet_acc})
 
                         logging.info(
@@ -475,9 +480,15 @@ def main(args):
                             wandb.log({f"val/alpha={alpha}/{name}": val, 'epoch': completed_epoch, 'alpha': alpha})
                             # wandb.log({f"val/{name}": val, 'epoch': completed_epoch, 'alpha': alpha})
 
+                        # Log Confusion Matrices
                         wandb_confusion_matrices = {}
-                        for (category, conf_matrix) in confusion_matrices.items():
+                        for (category, conf_matrix) in cinemanet_confusion_matrices.items():
                             key = f"val/alpha={alpha}/{category}-confusion_matrix"
+                            value = wandb.Image(conf_matrix)
+                            wandb_confusion_matrices[key] = value
+
+                        for (category, conf_matrix) in shotdeck_clip_confusion_matrices.items():
+                            key = f"val/alpha={alpha}/shotdeck-{category}-confusion_matrix"
                             value = wandb.Image(conf_matrix)
                             wandb_confusion_matrices[key] = value
                         wandb.log(log_images)

@@ -27,12 +27,19 @@ if True:
     sys.path.append("/home/synopsis/git/Synopsis.py/")
 
 
-from cinemanet_clip.inference import compute_image_embeddings, run_cinemanet_eval
+from cinemanet_clip.inference import (
+    compute_image_embeddings, run_cinemanet_eval_by_category, run_shotdeck_clip_eval_by_category
+)
 from cinemanet_clip.utils.model_loading import (
     load_interpolated_model, load_model, interpolate_weights)
 from cinemanet_clip.mapping import (
     TAXONOMY, TAXONOMY_CUSTOM_TOKENS, REVERSE_TAXONOMY, REVERSE_TAXONOMY_CUSTOM_TOKENS
 )
+from cinemanet_clip.inference.data_handler import DataHandlerCLIPValidation
+
+DEFAULT_CINEMANET_CATEGORIES = [
+    c for c in sorted(TAXONOMY.keys()) if c.startswith("color_") or c.startswith("shot_")
+]
 
 __all__ = ["ModelCfg", "InferenceModel", "InferenceModelWhileTraining"]
 
@@ -91,6 +98,7 @@ class InferenceModel:
         Some key methods:
             `self.eval_cinemanet()`
             `self.eval_imagenet()`
+            `self.eval_shotdeck_clip_datasets()`
             `self.get_image_embeddings()`
         """
         self.arch = arch
@@ -267,7 +275,7 @@ class InferenceModel:
         inaccuracies_per_label = {}
         confusion_matrices = {}
 
-        categories = categories or sorted(TAXONOMY.keys())
+        categories = categories or DEFAULT_CINEMANET_CATEGORIES
         for category in categories:
             if self.arch.endswith("-custom-text"):
                 taxonomy         = {category: TAXONOMY[category]}
@@ -277,14 +285,40 @@ class InferenceModel:
                 reverse_taxonomy = {category: REVERSE_TAXONOMY_CUSTOM_TOKENS[category]}
 
             # TODO: Log confusion matrix
-            acc,_,_,acc_per_label,inacc_per_label,confusion_matrix = run_cinemanet_eval(
+            acc,_,_,acc_per_label,inacc_per_label,confusion_matrix = run_cinemanet_eval_by_category(
                 self.model, self.tokenizer, category, batch_size=self.batch_size,
                 verbose=False, taxonomy=taxonomy, reverse_taxonomy=reverse_taxonomy,
+                viz_confusion_matrix=False,
             )
             accuracies_overall[category] = acc
             accuracies_per_label[category] = acc_per_label
             inaccuracies_per_label[category] = inacc_per_label
             confusion_matrices[category] = confusion_matrix
+
+        return accuracies_overall, accuracies_per_label, inaccuracies_per_label, confusion_matrices
+
+    def eval_shotdeck_clip_datasets(self, categories: Optional[List[str]]):
+        accuracies_overall = {}
+        accuracies_per_label = {}
+        inaccuracies_per_label = {}
+        confusion_matrices = {}
+
+        dh = DataHandlerCLIPValidation()
+        DEFAULT_SHOTDECK_CLIP_CATEGORIES = sorted(dh.categories)
+        categories = categories or DEFAULT_SHOTDECK_CLIP_CATEGORIES
+
+        for category in categories:
+            try:
+                acc,_,_,acc_per_label,inacc_per_label,confusion_matrix = run_shotdeck_clip_eval_by_category(
+                    self.model, self.tokenizer, category, batch_size=self.batch_size,
+                    verbose=False, viz_confusion_matrix=False,
+                )
+                accuracies_overall[category] = acc
+                accuracies_per_label[category] = acc_per_label
+                inaccuracies_per_label[category] = inacc_per_label
+                confusion_matrices[category] = confusion_matrix
+            except KeyError:
+                pass  # Don't have taxonomy for all CLIP taxonomies yet... derp.
 
         return accuracies_overall, accuracies_per_label, inaccuracies_per_label, confusion_matrices
 
