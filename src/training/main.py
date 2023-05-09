@@ -34,7 +34,6 @@ from training.logger import setup_logging
 from training.params import parse_args
 from training.scheduler import cosine_lr, const_lr, const_lr_cooldown
 from training.train import train_one_epoch, evaluate
-from training.train import evaluate_cinemanet
 from training.file_utils import pt_load, check_exists, start_sync_process, remote_sync
 
 
