@@ -429,14 +429,6 @@ def main(args):
         train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist_model, args, tb_writer=writer)
         completed_epoch = epoch + 1
 
-        # if any(v in data for v in ('val', 'imagenet-val', 'imagenet-v2')):
-        #     evaluate(model, data, completed_epoch, args, writer)
-
-        # try:
-        #     evaluate_cinemanet(model, args, completed_epoch)
-        # except Exception as e:
-        #     logging.warn(f"Failed to run CinemaNet evaluation. Exception -> \n{e}")
-
         # Saving checkpoints.
         if args.save_logs:
             checkpoint_dict = {
@@ -458,7 +450,7 @@ def main(args):
                     k:v.detach().cpu() for k,v in unwrap_model(model).state_dict().items()}
 
                 if is_master(args):
-                    from .inference import InferenceModel
+                    from inference import InferenceModel
                     alphas = [0.5, 0.75, 1.0]
                     if completed_epoch == 1:
                         alphas.insert(0, 0.0)
@@ -468,7 +460,7 @@ def main(args):
                         unwrap_model(model).load_state_dict(restore_state_dict)
                         inf = InferenceModel(model, tokenizer, orig_state_dict, args, alpha)
                         imgnet_metrics = inf.eval_imagenet()
-                        cinemanet_metrics, _, _ = inf.eval_cinemanet()
+                        cinemanet_metrics, _, _, confusion_matrices = inf.eval_cinemanet(args.cinemanet_eval_categories)
                         mean_cnet_acc = sum(cinemanet_metrics.values()) / len(cinemanet_metrics)
 
                         metrics.update(imgnet_metrics)
@@ -483,6 +475,13 @@ def main(args):
                         for name, val in metrics.items():
                             wandb.log({f"val/alpha={alpha}/{name}": val, 'epoch': completed_epoch, 'alpha': alpha})
                             # wandb.log({f"val/{name}": val, 'epoch': completed_epoch, 'alpha': alpha})
+
+                        wandb_confusion_matrices = {}
+                        for (category, conf_matrix) in confusion_matrices.items():
+                            key = f"val/alpha={alpha}/{category}-confusion_matrix"
+                            value = wandb.Image(conf_matrix)
+                            wandb_confusion_matrices[key] = value
+                        wandb.log(log_images)
 
                 unwrap_model(model).load_state_dict(restore_state_dict)
 
@@ -500,13 +499,12 @@ def main(args):
                 os.replace(tmp_save_path, latest_save_path)
 
     if args.wandb and is_master(args):
-        # TODO: Log prompt matches
-
         from cinemanet_clip.inference import (
             get_top_matches, view_top_matches,
             EVALUATION_PROMPTS, CELEBRITY_PROMPTS, PROP_PROMPTS)
-        from .inference import InferenceModel
-        from upyog.all import load_json, tqdm
+        from inference import InferenceModel
+        from upyog.all import load_json, tqdm, Path
+        from synopsis_labelling.utils.file_fetching import find_shotdeck_thumb_file_on_disk
 
         restore_state_dict = {
             k:v.detach().cpu() for k,v in unwrap_model(model).state_dict().items()}
@@ -524,8 +522,9 @@ def main(args):
             inf = InferenceModel(model, tokenizer, orig_state_dict, args, alpha)
 
             # Get embeddings
-            files = load_json("/home/synopsis/git/CinemaNet-Training/assets/shotdeck_sample_110k.json")
-            df = inf.get_image_embeddings(files, batch_size=args.batch_size, num_workers=args.workers)
+            filepaths = load_json("/home/synopsis/git/CinemaNet-Training/assets/shotdeck_sample_110k.json")
+            filepaths = [find_shotdeck_thumb_file_on_disk(Path(f).name) for f in filepaths]
+            df = inf.get_image_embeddings(filepaths, batch_size=args.batch_size, num_workers=args.workers)
             embeddings = np.stack(df.embedding)
 
             # Eval prompts

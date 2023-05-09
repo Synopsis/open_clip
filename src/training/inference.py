@@ -84,6 +84,7 @@ class InferenceMixin:
         accuracies_overall = {}
         accuracies_per_label = {}
         inaccuracies_per_label = {}
+        confusion_matrices = {}
 
         categories = categories or sorted(TAXONOMY.keys())
         for category in categories:
@@ -102,8 +103,9 @@ class InferenceMixin:
             accuracies_overall[category] = acc
             accuracies_per_label[category] = acc_per_label
             inaccuracies_per_label[category] = inacc_per_label
+            confusion_matrices[category] = confusion_matrix
 
-        return accuracies_overall, accuracies_per_label, inaccuracies_per_label
+        return accuracies_overall, accuracies_per_label, inaccuracies_per_label, confusion_matrices
 
 
 class InferenceModelFromDisk(InferenceMixin):
