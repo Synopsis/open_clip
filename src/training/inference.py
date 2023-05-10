@@ -114,7 +114,11 @@ class InferenceModel:
 
     @classmethod
     def from_ckpt_path(
-        cls, ckpt_path, device, alpha, batch_size, path_embedding, experiment_name
+        cls,
+        ckpt_path: PathLike,
+        device: Union[str, int, torch.device],
+        alpha: float,
+        batch_size: int = 128,
     ):
         ckpt_path = Path(ckpt_path)
         assert ckpt_path.parent.name == "checkpoints"
@@ -125,8 +129,8 @@ class InferenceModel:
         pretrained = cfg["pretrained"]
 
         return cls(
-            arch=arch, device=device, alpha=alpha, pretrained=pretrained, ckpt_path=ckpt_path,
-            batch_size=batch_size, path_embedding=path_embedding, experiment_name=experiment_name,
+            arch=arch, device=device, alpha=alpha, pretrained=pretrained,
+            ckpt_path=ckpt_path, batch_size=batch_size,
         )
 
     @property
@@ -157,6 +161,7 @@ class InferenceModel:
             model = load_interpolated_model(
                 self.arch, self.device, self.pretrained, self.ckpt_path, alpha=alpha)
             logger.info(f"Loaded interpolated weights at Alpha={self.alpha}")
+            self._is_pretrained_model = False
 
         else:
             assert self.ckpt_path is None
@@ -164,6 +169,7 @@ class InferenceModel:
             model = load_model(
                 self.arch, self.device, self.pretrained, self.ckpt_path)
             logger.info(f"Loaded pretrained model")
+            self._is_pretrained_model = True
 
         return model
 
@@ -207,6 +213,14 @@ class InferenceModel:
         return compute_image_embeddings(
             self.model, img_files, img_folders, batch_size or self.batch_size, num_workers)
 
+    @property
+    def is_pretrained_model(self) -> bool:
+        return self._is_pretrained_model
+
+    @property
+    def is_trained_checkpoint(self) -> bool:
+        return not self.is_pretrained_model
+
     def _create_save_embedding_filepath(
         self,
         suffix: Optional[str] = None,
@@ -216,7 +230,7 @@ class InferenceModel:
         save_dir = Path(save_dir)
         save_dir.mkdir(exist_ok=True, parents=True)
         filename = f"{self.arch}--{self.pretrained}"
-        if self.ckpt_path:
+        if self.is_pretrained_model:
             filename = f"{filename}--finetuned-alpha-{str(self.alpha)}"
 
         if suffix: filename = f"{filename}__{suffix}.feather"
@@ -230,6 +244,7 @@ class InferenceModel:
         suffix: Optional[str] = None,
         save_dir = "/home/synopsis/datasets/serialised-datasets/CLIP/CLIP-Embeddings-Cached/"
     ) -> PathLike:
+
         save_path = self._create_save_embedding_filepath(suffix, save_dir)
         df.to_feather(save_path)
         logger.success(f"Saved cached embeddings to {save_path}")
