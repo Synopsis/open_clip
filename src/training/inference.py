@@ -288,7 +288,6 @@ class InferenceModel:
             acc,_,_,acc_per_label,inacc_per_label,confusion_matrix = run_cinemanet_eval_by_category(
                 self.model, self.tokenizer, category, batch_size=self.batch_size,
                 verbose=False, taxonomy=taxonomy, reverse_taxonomy=reverse_taxonomy,
-                viz_confusion_matrix=False,
             )
             accuracies_overall[category] = acc
             accuracies_per_label[category] = acc_per_label
@@ -297,7 +296,7 @@ class InferenceModel:
 
         return accuracies_overall, accuracies_per_label, inaccuracies_per_label, confusion_matrices
 
-    def eval_shotdeck_clip_datasets(self, categories: Optional[List[str]]):
+    def eval_shotdeck_clip_datasets(self, categories: Optional[List[str]] = None):
         accuracies_overall = {}
         accuracies_per_label = {}
         inaccuracies_per_label = {}
@@ -311,7 +310,7 @@ class InferenceModel:
             try:
                 acc,_,_,acc_per_label,inacc_per_label,confusion_matrix = run_shotdeck_clip_eval_by_category(
                     self.model, self.tokenizer, category, batch_size=self.batch_size,
-                    verbose=False, viz_confusion_matrix=False,
+                    verbose=False,
                 )
                 accuracies_overall[category] = acc
                 accuracies_per_label[category] = acc_per_label

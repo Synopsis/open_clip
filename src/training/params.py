@@ -104,6 +104,12 @@ def parse_args(args):
         help="For `cinema_dynamic_caption` datasets, the name of the column with meta tags."
     )
     parser.add_argument(
+        "--subjective-eval-file",
+        type=str,
+        default="/home/synopsis/git/CinemaNet-Training/assets/shotdeck_sample_110k.json",
+        help="Path to a JSON file which is a list of filepaths to run subjective eval on at the end of training. The prompts are pre-selected. If not passed, no subjective eval is run"
+    )
+    parser.add_argument(
         "--dataset-resampled",
         default=False,
         action="store_true",

@@ -491,7 +491,7 @@ def main(args):
                             key = f"val/alpha={alpha}/shotdeck-{category}-confusion_matrix"
                             value = wandb.Image(conf_matrix)
                             wandb_confusion_matrices[key] = value
-                        wandb.log(log_images)
+                        wandb.log(wandb_confusion_matrices)
 
                 unwrap_model(model).load_state_dict(restore_state_dict)
 
@@ -508,7 +508,7 @@ def main(args):
                 torch.save(checkpoint_dict, tmp_save_path)
                 os.replace(tmp_save_path, latest_save_path)
 
-    if args.wandb and is_master(args):
+    if args.wandb and is_master(args) and args.subjective_eval_file:
         from cinemanet_clip.inference import (
             get_top_matches, view_top_matches,
             EVALUATION_PROMPTS, CELEBRITY_PROMPTS, PROP_PROMPTS)
@@ -532,7 +532,7 @@ def main(args):
             inf = InferenceModelWhileTraining(model, tokenizer, orig_state_dict, args, alpha)
 
             # Get embeddings
-            filepaths = load_json("/home/synopsis/git/CinemaNet-Training/assets/shotdeck_sample_110k.json")
+            filepaths = load_json(args.subjective_eval_file)
             filepaths = [find_shotdeck_thumb_file_on_disk(Path(f).name) for f in filepaths]
             df = inf.get_image_embeddings(filepaths, batch_size=args.batch_size, num_workers=args.workers)
             embeddings = np.stack(df.embedding)
