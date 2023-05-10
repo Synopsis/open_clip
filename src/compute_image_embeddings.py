@@ -25,52 +25,96 @@ if True:
     sys.path.append("/home/synopsis/git/cinemanet-multitask-classification/")
     sys.path.append("/home/synopsis/git/Synopsis.py/")
 
-from training.inference import InferenceModelFromDisk
+from training.inference import InferenceModel
 
 
 @call_parse
 def run_embeddings(
-    arch:          P("Model arch", str) = "ViT-L-14",
-    pretrained:    P("Pretrained?", str) = "openai",
-    ckpt_path:     P("Path to the checkpoint. If `None`, the stock model is used", str) = None,
-    img_folders:   P("(Optional) Folders with images to analyse", str, nargs="+") = ["/home/synopsis/datasets/shotdeck-thumbs/"],
-    img_files:     P("(Optional) List of image files to analyses", str, nargs="+") = None,
-    img_files_json: P("(Optional) A JSON file that contains a list of filepaths to analyse") = "/home/synopsis/git/CinemaNet-Training/assets/shotdeck_sample_830k.json",
-    alpha:         P("If using `ckpt_path`, alpha value to blend the pretrained & finetuned model", float) = None,
-    exp_name:      P("Name of the experiment. Acts as suffix to add to .feather filename", str) = "shotdeck_sample_embeddings",
-    batch_size:    P("Batch Size", int) = 32,
-    num_workers:   P("DataLoader num workers", int) = 4,
-    device:        P("Device", int) = 0,
-    save_dir:      P("Path to save the DataFrame to", str) = "/home/synopsis/datasets/serialised-datasets/CLIP/CLIP-Embeddings-Cached/",
-) -> Tuple[InferenceModelFromDisk, pd.DataFrame]:
+    arch:           P("(Optional) Model arch", str) = "ViT-L-14",
+    pretrained:     P("(Optional) Pretrained?", str) = "openai",
+    ckpt_path:      P("(Optional) Path to the checkpoint. If `None`, a pretrained model is used", str) = None,
+    img_files_json: P("(Optional) A JSON file that is a list of filepaths to run inference on. `/home/synopsis/git/CinemaNet-Training/assets/*sample*json` has a bunch of these ready to go") = "/home/synopsis/git/CinemaNet-Training/assets/shotdeck_sample_830k.json",
+    alphas:         P("(Optional) If using `ckpt_path`, alpha values to blend the pretrained & finetuned model", float, nargs='+') = [0.0, 0.5, 0.75, 1.0],
+    batch_size:     P("Batch Size", int) = 32,
+    num_workers:    P("DataLoader num workers", int) = 4,
+    device:         P("Device", int) = 0,
+    save_dir:       P("(Optional) Path to save the DataFrame to. If using a trained ckpt, cached embeddings are saved in the root folder", str) = "/home/synopsis/datasets/serialised-datasets/CLIP/CLIP-Embeddings-Cached/",
+) -> Tuple[InferenceModel, pd.DataFrame]:
+    """
+    This script lets you generate a cached embeddings `.feather` file with either
+    pretrained or trained checkpoints of CLIP models
+
+    If using a pretrained model, use these args: `arch`, `pretrained` and `save_dir`
+    If using a trained checkpoint, use `ckpt_path` and `alphas`
+
+    For trained checkpoints, the folder structure after the script will look something like this:
+        <`ckpt_path`'s Grandparent Root Folder>
+        ├── checkpoints
+        │   ├── `ckpt_path`
+        ├── out.log
+        ├── params.txt
+        ├── prompt-matches__<`img_files_json.stem`>
+        │   ├── convnext_base_w--laion_aesthetic_s13b_b82k--finetuned-alpha-0.0__2023_02_26-13_34_33.feather
+        │   ├── convnext_base_w--laion_aesthetic_s13b_b82k--finetuned-alpha-0.5__2023_02_26-13_34_33.feather
+        └── tensorboard
+
+        Where `prompt-matches__*` containes a `.feather` file saved for each value of `alphas`
+
+    For pretrained checkpoints, the folder structure after the script will look something like this:
+        <SAVE_DIR>
+        ├── {arch}--{pretrained}__pretrained__{img_files_json.stem}.feather
+        └── {arch}--{pretrained}__pretrained__{img_files_json.stem}.json
+    """
 
     args = deepcopy(locals())
     rich.print(f"\nArgs:\n{args}\n")
 
-    inf = InferenceModelFromDisk(
-                   arch = arch,
-                 device = device,
-                  alpha = alpha,
-             pretrained = pretrained,
-              ckpt_path = ckpt_path,
-         path_embedding = None,
-        experiment_name = exp_name,
-    )
-    rich.print(f"Model Info:\n{inf}\n")
+    img_files_json = Path(img_files_json)
+    img_files = load_json(img_files_json)
 
-    if img_files_json is not None:
-        if img_folders or img_files:
+    if ckpt_path and alphas:
+        USING_TRAINED_CKPT = True
+        if save_dir:
             logger.warning(
-                f"Ignoring `img_files` and `img_folders` and using `img_files_json` to select files to be analysed"
+                f"`save_dir` will be ignored as we're using a trained checkpoint. The embeddings will be saved inside the checkpoint's root folder"
             )
-            img_folders = None
-            img_files = load_json(img_files_json)
+        save_dir = Path(ckpt_path).parent.parent / f"prompt-matches__{img_files_json.stem}"
+        experiment_suffix = Path(ckpt_path).parent.parent.name[:19]  # Extracts unique timestamp
 
-    df = inf.get_image_embeddings(img_files, img_folders, batch_size, num_workers, save_dir)
+    else:
+        USING_TRAINED_CKPT = False
+        if alphas:
+            logger.warning(f"Ignoring `alphas` as a pretrained model is being used")
+        alphas = [0.0]
+        assert save_dir, f"`save_dir` needs to be passed if using a pretrained model"
+        experiment_suffix = f"pretrained__{img_files_json.stem}"
 
-    save_path_json = str(inf.path_embedding).replace(".feather", ".json")
-    with open(save_path_json, "w") as f:
-        json.dump(args, f, indent=4)
-    rich.print(f"Wrote accompanying metadata as JSON to {save_path_json}")
+    pbar = tqdm(alphas)
+    for alpha in pbar:
+        if USING_TRAINED_CKPT:
+            pbar.set_description(f"EVALUATING AT ALPHA = {alpha}")
+            inf = InferenceModel.from_ckpt_path(
+                 ckpt_path = ckpt_path,
+                    device = device,
+                     alpha = alpha,
+                batch_size = batch_size,
+            )
+        else:
+            pbar.set_description(f"EVALUATING W/ Pre-Trained Model")
+            inf = InferenceModel(
+                           arch = arch,
+                     pretrained = pretrained,
+                         device = device,
+                      ckpt_path = ckpt_path,
+            )
+
+        df = inf.get_image_embeddings(img_files, None, batch_size, num_workers)
+        cached_embeddings_path = inf.save_embedding_df(df, experiment_suffix, save_dir)
+
+        if not USING_TRAINED_CKPT:
+            save_path_json = cached_embeddings_path.with_suffix(".json")
+            with open(save_path_json, "w") as f:
+                json.dump(args, f, indent=4)
+            rich.print(f"Wrote accompanying metadata as JSON to {save_path_json}")
 
     return inf, df
