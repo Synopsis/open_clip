@@ -27,7 +27,7 @@ pip install -e ../../ --no-dependencies
 
 ## Args / HParams
 
-Below, I'm setting a few bash variables for key hparams. Here's a more detailed description of them:
+In the training script below, we set a few bash variables for key hparams. Here's a more detailed description of them:
 ### Architecture Args
 * `VARIANT`: Name of the the architecture. Must be one of `open_clip.list_models()`
 * `PRETRAINED`: Name of the pretrained checkpoint to load from. See `open_clip.list_pretrained()` for options. We use the `'laion_aesthetic_s13b_b82k'` ckpt and not the `'augreg'` one (though it's slightly higher in accuracy) because the additional augmentation destroys features that are useful from a cinematic perspective
@@ -37,6 +37,7 @@ Below, I'm setting a few bash variables for key hparams. Here's a more detailed 
     - `'cinema_single_caption'` - A .feather file with a column for the filepath and another with a _single_ caption for the file
     - `'cinema_multi_caption'` - A .feather file with a column for the filepath and another with _multiple_ captions for the file
     - `'cinema_dynamic_caption'` - TODO
+
 See [this notebook](https://github.com/Synopsis/CinemaNet-CLIP/blob/main/notebooks/data%20--%20debug%20training%20dataset%20classes.ipynb) to load some sample data
 * `TRAIN_DATA_PATH`: Path to the `.feather` file i.e. the dataset. See `/home/synopsis/datasets/serialised-datasets/CLIP/CLIP-Training/Fine-Tuning-Playbook-Experiments` for a bunch of single-caption files
 * `CAPTION_KEY`: Name of the column that contains the caption
@@ -87,9 +88,9 @@ total_steps     = EPOCHS * steps_per_epoch
 When training, we run inference on ImageNet, CinemaNet, and ShotDeck-CLIP validation sets. These are logged to W&B, along with confusion matrices (except for ImageNet).
 At the end of training, we load up a 110k sample ShotDeck dataset and run a few "common" prompts and save their top 21 results to W&B.
 
-For all of the above, inference is done at alphas 0.0, 0.5, 0.75 and 1.0
+For all of the above, inference is done at alphas `0.0`, `0.5`, `0.75` and `1.0`
 
-To run eval on only select CinemaNet categories, use the `--cinemanet-eval-categories` arg (not set as a bash variable currently)
+To run eval on only select CinemaNet categories, use the `--cinemanet-eval-categories` arg (not set as a bash variable currently... derp)
 
 
 ## Launching The Training Script
@@ -155,7 +156,52 @@ torchrun --nproc_per_node 3 -m main \
 The `inference.py` file has a class called `InferenceModel` that can run inference using either pretrained and/or trained checkpoints. See its docstring for more details on specific args.
 
 Use the `../compute_image_embeddings.py` script to run inference and save cached embeddings using this class.
-Run `python ../compute_image_embeddings.py --help` for more info. With cached embeddings, you can use some of the tooling in the notebooks below
+Pasted below is the output of `python ../compute_image_embeddings.py --help`:
+
+```
+    This script lets you generate a cached embeddings `.feather` file with either
+    pretrained or trained checkpoints of CLIP models
+
+    If using a pretrained model, use these args: `arch`, `pretrained` and `save_dir`
+    If using a trained checkpoint, use `ckpt_path` and `alphas`
+
+    For trained checkpoints, the folder structure after the script will look something like this:
+        <`ckpt_path`'s Grandparent Root Folder>
+        ├── checkpoints
+        │   ├── `ckpt_path`
+        ├── out.log
+        ├── params.txt
+        ├── prompt-matches__<`img_files_json.stem`>
+        │   ├── convnext_base_w--laion_aesthetic_s13b_b82k--finetuned-alpha-0.0__2023_02_26-13_34_33.feather
+        │   ├── convnext_base_w--laion_aesthetic_s13b_b82k--finetuned-alpha-0.5__2023_02_26-13_34_33.feather
+        └── tensorboard
+
+        Where `prompt-matches__*` containes a `.feather` file saved for each value of `alphas`
+
+    For pretrained checkpoints, the folder structure after the script will look something like this:
+        <SAVE_DIR>
+        ├── {arch}--{pretrained}__pretrained__{img_files_json.stem}.feather
+        └── {arch}--{pretrained}__pretrained__{img_files_json.stem}.json
+    
+
+optional arguments:
+  -h, --help         show this help message and exit
+  --arch             (Optional) Model arch (default: ViT-L-14)
+  --pretrained       (Optional) Pretrained? (default: openai)
+  --ckpt_path        (Optional) Path to the checkpoint. If `None`, a pretrained model is used
+  --img_files_json   (Optional) A JSON file that is a list of filepaths to run inference on.
+                     `/home/synopsis/git/CinemaNet-Training/assets/*sample*json` has a bunch of these ready to go
+                     (default: /home/synopsis/git/CinemaNet-Training/assets/shotdeck_sample_830k.json)
+  --alphas  [ ...]   (Optional) If using `ckpt_path`, alpha values to blend the pretrained & finetuned model (default:
+                     [0.0, 0.5, 0.75, 1.0])
+  --batch_size       Batch Size (default: 32)
+  --num_workers      DataLoader num workers (default: 4)
+  --device           Device (default: 0)
+  --save_dir         (Optional) Path to save the DataFrame to. If using a trained ckpt, cached embeddings are saved in the
+                     root folder (default: /home/synopsis/datasets/serialised-datasets/CLIP/CLIP-Embeddings-Cached/)
+```
+
+With cached embeddings, you can use some of the tooling in the notebooks below
 
 #### List of Relevant Notebooks
 
