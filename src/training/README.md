@@ -38,7 +38,7 @@ Below, I'm setting a few bash variables for key hparams. Here's a more detailed 
     - `'cinema_multi_caption'` - A .feather file with a column for the filepath and another with _multiple_ captions for the file
     - `'cinema_dynamic_caption'` - TODO
 See [this notebook](https://github.com/Synopsis/CinemaNet-CLIP/blob/main/notebooks/data%20--%20debug%20training%20dataset%20classes.ipynb) to load some sample data
-* `TRAIN_DATA_PATH`: Path to the `.feather` file i.e. the dataset
+* `TRAIN_DATA_PATH`: Path to the `.feather` file i.e. the dataset. See `/home/synopsis/datasets/serialised-datasets/CLIP/CLIP-Training/Fine-Tuning-Playbook-Experiments` for a bunch of single-caption files
 * `CAPTION_KEY`: Name of the column that contains the caption
 
 
