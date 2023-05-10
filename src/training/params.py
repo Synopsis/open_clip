@@ -106,7 +106,7 @@ def parse_args(args):
     parser.add_argument(
         "--subjective-eval-file",
         type=str,
-        default="/home/synopsis/git/CinemaNet-Training/assets/shotdeck_sample_110k.json",
+        default=None,
         help="Path to a JSON file which is a list of filepaths to run subjective eval on at the end of training. The prompts are pre-selected. If not passed, no subjective eval is run"
     )
     parser.add_argument(

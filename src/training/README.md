@@ -104,6 +104,7 @@ export PRETRAINED="laion_aesthetic_s13b_b82k"
 export DSET_TYPE="cinema_single_caption"
 export TRAIN_DATA_PATH="/home/synopsis/datasets/serialised-datasets/CLIP/CLIP-Training/Fine-Tuning-Playbook-Experiments/shot_angle__10k.feather"
 export CAPTION_KEY="caption"
+export CINEMANET_EVAL_CATEGORIES="shot_angle"
 
 # Freezing
 export NUM_TUNABLE_LAYERS_VISION=5
@@ -135,8 +136,8 @@ torchrun --nproc_per_node 3 -m main \
     --grad-clip-norm 1.0 \
     --pretrained $PRETRAINED \
     --precision amp_bf16 \
-    --lr=1e-4 \
-    --warmup 500 \
+    --lr $LR \
+    --warmup $WARMUP_STEPS \
     --model $VARIANT \
     --epochs $EPOCHS \
     --batch-size $BATCH_SIZE \
@@ -146,7 +147,8 @@ torchrun --nproc_per_node 3 -m main \
     --lock-text \
     --lock-text-unlocked-layers $NUM_TUNABLE_LAYERS_TEXT \
     --save-frequency $EVAL_FREQUENCY \
-    --cinemanet-eval-categories shot_angle
+    --cinemanet-eval-categories $CINEMANET_EVAL_CATEGORIES \
+    # --subjective-eval-file /home/synopsis/git/CinemaNet-Training/assets/shotdeck_sample_110k.json
 ```
 
 ---
