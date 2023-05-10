@@ -155,8 +155,11 @@ torchrun --nproc_per_node 3 -m main \
 
 The `inference.py` file has a class called `InferenceModel` that can run inference using either pretrained and/or trained checkpoints. See its docstring for more details on specific args.
 
-Use the `../compute_image_embeddings.py` script to run inference and save cached embeddings using this class.
+<details><summary>
+    Use the `../compute_image_embeddings.py` script to run inference and save cached embeddings using this class.
 Pasted below is the output of `python ../compute_image_embeddings.py --help`:
+
+</summary>
 
 ```
     This script lets you generate a cached embeddings `.feather` file with either
@@ -200,6 +203,8 @@ optional arguments:
   --save_dir         (Optional) Path to save the DataFrame to. If using a trained ckpt, cached embeddings are saved in the
                      root folder (default: /home/synopsis/datasets/serialised-datasets/CLIP/CLIP-Embeddings-Cached/)
 ```
+
+</details>
 
 With cached embeddings, you can use some of the tooling in the notebooks below
 
