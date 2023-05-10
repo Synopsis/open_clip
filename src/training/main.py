@@ -450,7 +450,8 @@ def main(args):
 
                 if is_master(args):
                     from inference import InferenceModelWhileTraining
-                    alphas = [0.5, 0.75, 1.0]
+                    # alphas = [0.5, 0.75, 1.0]
+                    alphas = [0.5, 1.0]
                     if completed_epoch == 1:
                         alphas.insert(0, 0.0)
 

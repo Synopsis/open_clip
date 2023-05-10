@@ -39,8 +39,10 @@ In the training script below, we set a few bash variables for key hparams. Here'
     - `'cinema_dynamic_caption'` - TODO
 
 See [this notebook](https://github.com/Synopsis/CinemaNet-CLIP/blob/main/notebooks/data%20--%20debug%20training%20dataset%20classes.ipynb) to load some sample data
-* `TRAIN_DATA_PATH`: Path to the `.feather` file i.e. the dataset. See `/home/synopsis/datasets/serialised-datasets/CLIP/CLIP-Training/Fine-Tuning-Playbook-Experiments` for a bunch of single-caption files
+* `TRAIN_DATA_PATH`: Path to the `.feather` file i.e. the dataset
 * `CAPTION_KEY`: Name of the column that contains the caption
+
+Our CLIP-Training datasets are stored in [this repo](https://github.com/Synopsis/Datasets-CLIP-Training), locally available at `/home/synopsis/datasets/serialised-datasets/CLIP/CLIP-Training/`
 
 
 
@@ -102,27 +104,27 @@ export PRETRAINED="laion_aesthetic_s13b_b82k"
 
 # Data
 export DSET_TYPE="cinema_single_caption"
-export TRAIN_DATA_PATH="/home/synopsis/datasets/serialised-datasets/CLIP/CLIP-Training/Fine-Tuning-Playbook-Experiments/shot_angle__10k.feather"
+export TRAIN_DATA_PATH="/home/synopsis/datasets/serialised-datasets/CLIP/CLIP-Training/Fine-Tuning-Playbook-Experiments/shot_composition__10k.feather"
 export CAPTION_KEY="caption"
-export CINEMANET_EVAL_CATEGORIES="shot_angle"
+export CINEMANET_EVAL_CATEGORIES="shot_composition"
 
 # Freezing
 export NUM_TUNABLE_LAYERS_VISION=5
-export NUM_TUNABLE_LAYERS_TEXT=7   # Final head & LayerNorm + Last 5 Blocks
+export NUM_TUNABLE_LAYERS_TEXT=3   # Final head & LayerNorm + Last 5 Blocks
 
 # Tuning
-export LR=1e-3
+export LR=1e-4
 export EPOCHS=15
 export BATCH_SIZE=256
 export ACCUM_FREQ=8
-export WARMUP_STEPS=3
-export EVAL_FREQUENCY=5
+export WARMUP_STEPS=10
+export EVAL_FREQUENCY=1
 
 
 # --------- LAUNCH TRAINING RUN --------- #
 # If you want to run on a single CPU, launch with `python training/main.py`
 # python training/main.py \
-torchrun --nproc_per_node 3 -m main \
+torchrun --nproc_per_node 2 -m main \
     --train-data $TRAIN_DATA_PATH \
     --dataset-type $DSET_TYPE \
     --csv-img-key filepath_mistake_not \
