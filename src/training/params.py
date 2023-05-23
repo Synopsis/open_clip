@@ -364,10 +364,22 @@ def parse_args(args):
         help="Notes if logging with wandb"
     )
     parser.add_argument(
+        "--wandb-tags",
+        type=str,
+        nargs="+",
+        help="Tags if logging with wandb"
+    )
+    parser.add_argument(
         "--wandb-project-name",
         type=str,
         default='open-clip',
         help="Name of the project if logging with wandb.",
+    )
+    parser.add_argument(
+        "--wandb-run-name",
+        type=str,
+        default=None,
+        help="Name for this run if using wandb"
     )
     parser.add_argument(
         "--debug",

@@ -400,13 +400,14 @@ def main(args):
             args.val_sz = data["val"].dataloader.num_samples
         # you will have to configure this for your project!
         img_size: int = unwrap_model(model).visual.image_size[0]
-        wandb_name = f"{model_name_safe}__imgsz-{img_size}__num-train-lyr-{args.lock_image_unlocked_groups}__{date_str}"
+        wandb_name = args.wandb_run_name or f"{model_name_safe}__imgsz-{img_size}__num-train-lyr-{args.lock_image_unlocked_groups}"
+        wandb_name = wandb_name + f"__{date_str}"
         wandb.init(
             project=args.wandb_project_name,
             name=wandb_name,
             id=args.name,
             notes=args.wandb_notes,
-            tags=[],
+            tags=args.wandb_tags, 
             resume='auto' if args.resume == "latest" else None,
             config=vars(args),
         )
@@ -451,9 +452,13 @@ def main(args):
                 if is_master(args):
                     from inference import InferenceModelWhileTraining
                     # alphas = [0.5, 0.75, 1.0]
-                    alphas = [0.5, 1.0]
-                    if completed_epoch == 1:
-                        alphas.insert(0, 0.0)
+                    # damian: merge alphas, disable 0.5
+                    # alphas = [0.5, 1.0]
+                    alphas = [1.0]
+
+                    # base accuracy
+                    #if completed_epoch == 1:
+                    #    alphas.insert(0, 0.0)
 
                     for alpha in alphas:
                         metrics = {}
