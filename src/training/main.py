@@ -451,14 +451,9 @@ def main(args):
 
                 if is_master(args):
                     from inference import InferenceModelWhileTraining
-                    # alphas = [0.5, 0.75, 1.0]
-                    # damian: merge alphas, disable 0.5
-                    # alphas = [0.5, 1.0]
-                    alphas = [1.0]
-
-                    # base accuracy
-                    #if completed_epoch == 1:
-                    #    alphas.insert(0, 0.0)
+                    alphas = args.val_alphas
+                    if completed_epoch == 1 and args.val_alpha_0:
+                        alphas.insert(0, 0.0)
 
                     for alpha in alphas:
                         metrics = {}

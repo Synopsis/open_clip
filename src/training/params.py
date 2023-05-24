@@ -232,6 +232,16 @@ def parse_args(args):
         "--val-frequency", type=int, default=1, help="How often to run evaluation with val data."
     )
     parser.add_argument(
+        "--val-alphas", 
+        type=float, 
+        nargs='+', 
+        help="Which merge alphas with the base model to evaluate (0=original weights, 1=trained weights)", 
+        default=[0.5, 1.0])
+    parser.add_argument(
+        "--val-alpha-0",
+        action='store_true',
+        help="Also evaluate alpha=0 (original weights)")
+    parser.add_argument(
         "--resume",
         default=None,
         type=str,
