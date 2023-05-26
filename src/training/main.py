@@ -281,8 +281,11 @@ def main(args):
             freeze_bn_stats=args.lock_image_freeze_bn_stats)
     if args.lock_text:
         model.lock_text_tower(
-            unlocked_layers=args.lock_text_unlocked_layers,
-            freeze_layer_norm=args.lock_text_freeze_layer_norm)
+                        unlocked_layers = args.lock_text_unlocked_layers,
+                      freeze_layer_norm = args.lock_text_freeze_layer_norm,
+            # unlock_positional_embedding = args.unlock_text_pos_embed,
+                #  unlock_token_embedding = args.unlock_text_token_embed,
+        )
 
     if args.grad_checkpointing:
         model.set_grad_checkpointing()
@@ -317,22 +320,91 @@ def main(args):
     if args.train_data or args.dataset_type == "synthetic":
         assert not args.trace, 'Cannot train with traced model'
 
+        # NOTE: I (Rahul) have verified outside the script that no parts of the
+        # text/positional embedding get excluded by the `exclude` function as
+        # there's no BN, LN, bias, or logit_scale parameters in these weights
+        # def exclude(n, p) -> bool:
+        #     to_exclude = p.ndim < 2 or "bn" in n or "ln" in n or "bias" in n or 'logit_scale' in n
+        #     if to_exclude and n=="positional_embedding":
+        #         print("WARNING!! Excluding Parts Of Positional Text Embedding!")
+
+        #     if to_exclude and n=="token_embedding.weight":
+        #         print("WARNING!! Excluding Parts Of Token Text Embedding!")
+
+        #     return to_exclude
+
         exclude = lambda n, p: p.ndim < 2 or "bn" in n or "ln" in n or "bias" in n or 'logit_scale' in n
         include = lambda n, p: not exclude(n, p)
+
+        # if args.unlock_text_pos_embed or args.unlock_text_token_embed:
+        #     non_tok_pos_embedding_params = []
+        #     _found_pos = False
+        #     _found_tok = False
+        #     for (name, params) in model.named_parameters():
+        #         is_pos_embedding = name == "positional_embedding"
+        #         is_token_embedding = name == "token_embedding.weight"
+
+        #         if is_pos_embedding or is_token_embedding:
+        #             if is_pos_embedding:
+        #                 _found_pos = True
+        #                 pos_embedding_params = [(name, params)]
+        #             if is_token_embedding:
+        #                 _found_tok = True
+        #                 token_embedding_params = [(name, params)]
+
+        #         else:
+        #             non_tok_pos_embedding_params.append( (name, params) )
+
+        #     assert _found_pos, f"Failed to find positional text embedding in model params"
+        #     assert _found_tok, f"Failed to find token text embedding in model params"
+
+        #     gain_or_bias_params = [p for n, p in non_tok_pos_embedding_params if exclude(n, p) and p.requires_grad]
+        #     rest_params = [p for n, p in non_tok_pos_embedding_params if include(n, p) and p.requires_grad]
+
+        #     pos_embedding_trainable_params = [p for n,p in pos_embedding_params if p.requires_grad]
+        #     token_embedding_trainable_params = [p for n,p in token_embedding_params if p.requires_grad]
+
+        #     optimizer = optim.AdamW(
+        #         [
+        #             {"params": gain_or_bias_params, "weight_decay": 0., "name": "bn_ln_bias_logit_scale_params"},
+        #             {"params": rest_params, "weight_decay": args.wd,    "name": "model_params"},
+        #             {"params": pos_embedding_trainable_params,   "weight_decay": args.wd, "lr": args.lr_text_pos_embed, "name": "positional_text_embedding"},
+        #             {"params": token_embedding_trainable_params, "weight_decay": args.wd, "lr": args.lr_text_token_embed, "name": "token_text_embedding"},
+        #         ],
+        #         lr=args.lr,
+        #         betas=(args.beta1, args.beta2),
+        #         eps=args.eps,
+        #     )
+
+        # else:
+        #     named_parameters = list(model.named_parameters())
+        #     gain_or_bias_params = [p for n, p in named_parameters if exclude(n, p) and p.requires_grad]
+        #     rest_params = [p for n, p in named_parameters if include(n, p) and p.requires_grad]
+
+        #     optimizer = optim.AdamW(
+        #         [
+        #             {"params": gain_or_bias_params, "weight_decay": 0., "name": "bn_ln_bias_logit_scale_params"},
+        #             {"params": rest_params, "weight_decay": args.wd,    "name": "model_params"},
+        #         ],
+        #         lr=args.lr,
+        #         betas=(args.beta1, args.beta2),
+        #         eps=args.eps,
+        #     )
 
         named_parameters = list(model.named_parameters())
         gain_or_bias_params = [p for n, p in named_parameters if exclude(n, p) and p.requires_grad]
         rest_params = [p for n, p in named_parameters if include(n, p) and p.requires_grad]
 
         optimizer = optim.AdamW(
-            [
-                {"params": gain_or_bias_params, "weight_decay": 0.},
-                {"params": rest_params, "weight_decay": args.wd},
-            ],
-            lr=args.lr,
-            betas=(args.beta1, args.beta2),
-            eps=args.eps,
-        )
+                [
+                    {"params": gain_or_bias_params, "weight_decay": 0., "name": "bn_ln_bias_logit_scale_params"},
+                    {"params": rest_params, "weight_decay": args.wd,    "name": "model_params"},
+                ],
+                lr=args.lr,
+                betas=(args.beta1, args.beta2),
+                eps=args.eps,
+            )
+
         if args.horovod:
             optimizer = hvd.DistributedOptimizer(optimizer, named_parameters=model.named_parameters())
             hvd.broadcast_parameters(model.state_dict(), root_rank=0)
@@ -462,7 +534,10 @@ def main(args):
 
                         # Run evaluation on ImageNet + CinemaNet + ShotDeck Datasets
                         imgnet_metrics = inf.eval_imagenet()
-                        cinemanet_metrics, _, _, cinemanet_confusion_matrices = inf.eval_cinemanet(args.cinemanet_eval_categories)
+                        cinemanet_metrics, _, _, cinemanet_confusion_matrices = inf.eval_cinemanet(
+                            categories = args.cinemanet_eval_categories,
+                            viz_title = wandb_name,
+                        )
                         mean_cnet_acc = sum(cinemanet_metrics.values()) / len(cinemanet_metrics)
                         # shotdeck_clip_metrics, _, _, shotdeck_clip_confusion_matrices = inf.eval_shotdeck_clip_datasets()
 

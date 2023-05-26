@@ -439,6 +439,26 @@ def parse_args(args):
         default=0,
         help="Leave last n image tower layer groups unlocked.",
     )
+    # parser.add_argument(
+    #     "--unlock-text-pos-embed",
+    #     default=False,
+    #     action='store_true',
+    #     help="Tune the positional text embedding",
+    # )
+    # parser.add_argument(
+    #     "--unlock-text-token-embed",
+    #     default=False,
+    #     action='store_true',
+    #     help="Tune the token text embedding",
+    # )
+    # parser.add_argument(
+    #     "--lr-text-pos-embed", type=float, default=None,
+    #     help="Learning rate for tuning the positional text embedding",
+    # )
+    # parser.add_argument(
+    #     "--lr-text-token-embed", type=float, default=None,
+    #     help="Learning rate for tuning the token text embedding",
+    # )
     parser.add_argument(
         "--lock-text-freeze-layer-norm",
         default=False,
