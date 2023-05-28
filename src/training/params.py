@@ -91,6 +91,13 @@ def parse_args(args):
         help="For `cinema_dynamic_caption` datasets, the name of the caption columns."
     )
     parser.add_argument(
+        "--dynamic-cinemanet-tag-categories",
+        type=str,
+        nargs="+",
+        default=None,
+        help="",
+    )
+    parser.add_argument(
         "--use-dynamic-aliases",
         type=bool,
         default=True,

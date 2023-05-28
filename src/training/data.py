@@ -566,14 +566,16 @@ def get_data(args, preprocess_fns, epoch=0, tokenizer=None):
         from cinemanet_clip.dataset import CinemaNetDynamicCaptionDataset
 
         dataset = CinemaNetDynamicCaptionDataset(
-            args.train_data, preprocess_train,
-            img_key = args.csv_img_key,
-            caption_key = args.dynamic_caption_keys,
-            tags_key = args.tags_key,
-            tokenizer = tokenizer,
-            schema_path = args.schema_path,
-            thresh = args.caption_thresh,
-            use_aliases = args.use_dynamic_aliases,
+              path_feather = args.train_data,
+                transforms = preprocess_train,
+                   img_key = args.csv_img_key,
+               caption_key = args.dynamic_caption_keys,
+                  tags_key = args.tags_key,
+                 tokenizer = tokenizer,
+               schema_path = args.schema_path,
+                    thresh = args.caption_thresh,
+               use_aliases = args.use_dynamic_aliases,
+            cinemanet_keys = args.dynamic_cinemanet_tag_categories,
         )
 
         # FIXME: Duplicated code, but this is more explicit.
