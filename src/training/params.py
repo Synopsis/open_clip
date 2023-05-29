@@ -95,18 +95,17 @@ def parse_args(args):
         type=str,
         nargs="+",
         default=None,
-        help="",
+        help="Specify which CinemaNet categories to use for training. 'all' = all are used. By default, none are used.",
     )
     parser.add_argument(
         "--use-dynamic-aliases",
-        type=bool,
-        default=True,
+        default=False,
+        action="store_true",
         help="For `cinema_dynamic_caption` datasets, don't use aliases."
     )
     parser.add_argument(
         "--tags-key",
         type=str,
-        nargs="+",
         default=None,
         help="For `cinema_dynamic_caption` datasets, the name of the column with meta tags."
     )

@@ -564,6 +564,12 @@ def get_data(args, preprocess_fns, epoch=0, tokenizer=None):
             raise ValueError(f"Attempting to load dynamic cinema captions dataset but no `--schema-path` is not specified")
 
         from cinemanet_clip.dataset import CinemaNetDynamicCaptionDataset
+        from cinemanet_clip.labelling.prompt_engineering import DEFAULT_CINEMANET_CATEGORIES
+
+        if args.dynamic_cinemanet_tag_categories == ["all"]:
+            cinemanet_keys = DEFAULT_CINEMANET_CATEGORIES
+        else:
+            cinemanet_keys = args.dynamic_cinemanet_tag_categories
 
         dataset = CinemaNetDynamicCaptionDataset(
               path_feather = args.train_data,
@@ -575,7 +581,7 @@ def get_data(args, preprocess_fns, epoch=0, tokenizer=None):
                schema_path = args.schema_path,
                     thresh = args.caption_thresh,
                use_aliases = args.use_dynamic_aliases,
-            cinemanet_keys = args.dynamic_cinemanet_tag_categories,
+            cinemanet_keys = cinemanet_keys,
         )
 
         # FIXME: Duplicated code, but this is more explicit.
