@@ -67,7 +67,10 @@ def parse_args(args):
     )
     parser.add_argument(
         "--dataset-type",
-        choices=["webdataset", "csv", "synthetic", "auto", "cinema_single_caption", "cinema_multi_caption", "cinema_dynamic_caption"],
+        choices=[
+            "webdataset", "csv", "synthetic", "auto", "cinema_single_caption", "cinema_multi_caption",
+            "cinema_dynamic_caption", "cinema_dynamic_multi_caption"
+        ],
         default="auto",
         help="Which type of dataset to process."
     )
@@ -75,20 +78,20 @@ def parse_args(args):
         "--schema-path",
         type=str,
         default=None,
-        help="Path to the schema file that helps load dynamic captions (only applicable if using `cinema_dynamic_caption` dataset)",
+        help="Path to the schema file that helps load dynamic captions (only applicable if using `cinema_dynamic_*` dataset)",
     )
     parser.add_argument(
         "--caption-thresh",
         type=float,
         default=0.85,
-        help="Threshold value for auto captions (only applicable if using `cinema_dynamic_caption` dataset)",
+        help="Threshold value for auto captions (only applicable if using `cinema_dynamic_*` dataset)",
     )
     parser.add_argument(
         "--dynamic-caption-keys",
         type=str,
         nargs="+",
         default=None,
-        help="For `cinema_dynamic_caption` datasets, the name of the caption columns."
+        help="For `cinema_dynamic_*` datasets, the name of the caption columns."
     )
     parser.add_argument(
         "--dynamic-cinemanet-tag-categories",
@@ -101,13 +104,13 @@ def parse_args(args):
         "--use-dynamic-aliases",
         default=False,
         action="store_true",
-        help="For `cinema_dynamic_caption` datasets, don't use aliases."
+        help="For `cinema_dynamic_*` datasets, don't use aliases."
     )
     parser.add_argument(
         "--tags-key",
         type=str,
         default=None,
-        help="For `cinema_dynamic_caption` datasets, the name of the column with meta tags."
+        help="For `cinema_dynamic_*` datasets, the name of the column with meta tags."
     )
     parser.add_argument(
         "--subjective-eval-file",

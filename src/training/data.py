@@ -559,11 +559,11 @@ def get_data(args, preprocess_fns, epoch=0, tokenizer=None):
         sys.path.append("/home/synopsis/git/cinemanet-multitask-classification/")
         sys.path.append("/home/synopsis/git/Synopsis.py")
 
-    if args.train_data and args.dataset_type == "cinema_dynamic_caption":
+    if args.train_data and args.dataset_type in ["cinema_dynamic_caption", "cinema_dynamic_multi_caption"]:
         if args.schema_path is None:
             raise ValueError(f"Attempting to load dynamic cinema captions dataset but no `--schema-path` is not specified")
 
-        from cinemanet_clip.dataset import CinemaNetDynamicCaptionDataset
+        from cinemanet_clip.dataset import CinemaNetDynamicCaptionDataset, CinemaNetDynamicMultiCaptionDataset
         from cinemanet_clip.labelling.prompt_engineering import DEFAULT_CINEMANET_CATEGORIES
 
         if args.dynamic_cinemanet_tag_categories == ["all"]:
@@ -571,7 +571,10 @@ def get_data(args, preprocess_fns, epoch=0, tokenizer=None):
         else:
             cinemanet_keys = args.dynamic_cinemanet_tag_categories
 
-        dataset = CinemaNetDynamicCaptionDataset(
+        if   args.dataset_type == "cinema_dynamic_caption":       dset_cls = CinemaNetDynamicCaptionDataset
+        elif args.dataset_type == "cinema_dynamic_multi_caption": dset_cls = CinemaNetDynamicMultiCaptionDataset
+
+        dataset = dset_cls(
               path_feather = args.train_data,
                 transforms = preprocess_train,
                    img_key = args.csv_img_key,
@@ -588,7 +591,15 @@ def get_data(args, preprocess_fns, epoch=0, tokenizer=None):
         is_train = True
         num_samples = len(dataset)
         sampler = DistributedSampler(dataset) if args.distributed and is_train else None
-        shuffle = is_train and sampler is None
+
+        if args.dataset_type == "cinema_dynamic_caption":
+            shuffle = is_train and sampler is None
+
+        # Turn off shuffling for this dset type as we want samples to be trained in order
+        elif args.dataset_type == "cinema_dynamic_multi_caption":
+            shuffle = False
+            if args.distributed:
+                sampler = DistributedSampler(dataset, shuffle=False)
 
         dataloader = DataLoader(
             dataset,
@@ -603,7 +614,6 @@ def get_data(args, preprocess_fns, epoch=0, tokenizer=None):
         dataloader.num_batches = len(dataloader)
 
         data["train"] = DataInfo(dataloader, sampler)
-
 
     elif args.train_data and args.dataset_type in ["cinema_single_caption", "cinema_multi_caption"]:
         from cinemanet_clip.dataset import CinemaNetSingleCaptionDataset, CinemaNetMultiCaptionDataset
