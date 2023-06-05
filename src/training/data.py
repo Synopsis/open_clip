@@ -597,9 +597,12 @@ def get_data(args, preprocess_fns, epoch=0, tokenizer=None):
 
         # Turn off shuffling for this dset type as we want samples to be trained in order
         elif args.dataset_type == "cinema_dynamic_multi_caption":
-            shuffle = False
-            if args.distributed:
-                sampler = DistributedSampler(dataset, shuffle=False)
+            if not args.dynamic_multicaption_shuffle:
+                shuffle = False
+                if args.distributed:
+                    sampler = DistributedSampler(dataset, shuffle=False)
+            else:
+                shuffle = True
 
         dataloader = DataLoader(
             dataset,

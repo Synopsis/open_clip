@@ -94,6 +94,12 @@ def parse_args(args):
         help="For `cinema_dynamic_*` datasets, the name of the caption columns."
     )
     parser.add_argument(
+        "--dynamic-multicaption-shuffle",
+        default=False,
+        action="store_true",
+        help="Whether to shuffle `cinema_dynamic_multi_caption` dataset"
+    )
+    parser.add_argument(
         "--dynamic-cinemanet-tag-categories",
         type=str,
         nargs="+",
