@@ -618,6 +618,56 @@ def get_data(args, preprocess_fns, epoch=0, tokenizer=None):
 
         data["train"] = DataInfo(dataloader, sampler)
 
+    if args.train_data and args.dataset_type in ["cinema_laion_dynamic_caption"]:
+        from cinemanet_clip.dataset import CinemaNetLAIONDynamicCaptionDataset
+        from cinemanet_clip.labelling.prompt_engineering import DEFAULT_CINEMANET_CATEGORIES
+
+        if args.dynamic_cinemanet_tag_categories == ["all"]:
+            cinemanet_keys = DEFAULT_CINEMANET_CATEGORIES
+        else:
+            cinemanet_keys = args.dynamic_cinemanet_tag_categories
+
+        dataset = CinemaNetLAIONDynamicCaptionDataset(
+                         path_laion_feather = args.train_data_laion,
+                     path_cinemanet_feather = args.train_data_cnet,
+                                 transforms = preprocess_train,
+                                    img_key = args.csv_img_key,
+                           caption_key_cnet = args.dynamic_caption_keys,
+                          caption_key_laion = [args.laion_caption_key],
+                                  tokenizer = tokenizer,
+                                schema_path = args.schema_path,
+                                     thresh = args.caption_thresh,
+                                   tags_key = args.tags_key,
+                                use_aliases = args.use_dynamic_aliases,
+                             cinemanet_keys = cinemanet_keys,
+                                laion_split = args.laion_split,
+            include_cinemanet_tags_in_laion = args.include_cnet_tags_in_laion,
+        )
+
+        # NOTE: Duplicated code, but this is more explicit.
+        is_train = True
+        num_samples = len(dataset)
+        sampler = DistributedSampler(dataset) if args.distributed and is_train else None
+        shuffle = False
+        if args.distributed:
+            sampler = DistributedSampler(dataset, shuffle=False)
+
+        dataloader = DataLoader(
+            dataset,
+            batch_size=args.batch_size,
+            shuffle=shuffle,
+            num_workers=args.workers,
+            pin_memory=True,
+            sampler=sampler,
+            drop_last=is_train,
+        )
+        dataloader.num_samples = num_samples
+        dataloader.num_batches = len(dataloader)
+
+        data["train"] = DataInfo(dataloader, sampler)
+        print("------" * 100)
+        print("NEW LAION DATASET")
+
     elif args.train_data and args.dataset_type in ["cinema_single_caption", "cinema_multi_caption"]:
         from cinemanet_clip.dataset import CinemaNetSingleCaptionDataset, CinemaNetMultiCaptionDataset
 

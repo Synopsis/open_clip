@@ -69,10 +69,40 @@ def parse_args(args):
         "--dataset-type",
         choices=[
             "webdataset", "csv", "synthetic", "auto", "cinema_single_caption", "cinema_multi_caption",
-            "cinema_dynamic_caption", "cinema_dynamic_multi_caption"
+            "cinema_dynamic_caption", "cinema_dynamic_multi_caption", "cinema_laion_dynamic_caption",
         ],
         default="auto",
         help="Which type of dataset to process."
+    )
+    parser.add_argument(
+        "--train-data-laion",
+        type=str,
+        default=None,
+        help="Path to file with the LAION training data. Only applicable when `--dataset-type` is `cinema_laion_dynamic_caption`",
+    )
+    parser.add_argument(
+        "--train-data-cnet",
+        type=str,
+        default=None,
+        help="Path to file with the CinemaNet training data. Only applicable when `--dataset-type` is `cinema_laion_dynamic_caption`",
+    )
+    parser.add_argument(
+        "--laion-split",
+        type=float,
+        default=0.5,
+        help="What percentage of the batch must be LAION data. Only applicable when `--dataset-type` is `cinema_laion_dynamic_caption`",
+    )
+    parser.add_argument(
+        "--include-cnet-tags-in-laion",
+        default=False,
+        action="store_true",
+        help="Append comma separated CinemaNet tags to LAION? Only applicable when `--dataset-type` is `cinema_laion_dynamic_caption`",
+    )
+    parser.add_argument(
+        "--laion-caption-key",
+        type=str,
+        default="caption",
+        help="Colname with the LAION caption. Only applicable when `--dataset-type` is `cinema_laion_dynamic_caption`"
     )
     parser.add_argument(
         "--schema-path",
