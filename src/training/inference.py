@@ -2,6 +2,9 @@ from upyog.all import *
 from open_clip import get_tokenizer
 from open_clip.pretrained import get_pretrained_cfg
 from open_clip.constants import OPENAI_DATASET_MEAN, OPENAI_DATASET_STD
+from cinemanet_clip.inference.inference import (
+    compute_single_file_image_embedding, compute_single_image_embedding
+)
 
 import torch
 
@@ -437,3 +440,65 @@ class InferenceModelWhileTraining(InferenceModel):
 
     def __repr__(self) -> str:
         return f"InferenceModelWhileTraining(...)"
+
+
+def to_np(tensor: torch.Tensor, dtype=np.float32):
+    return tensor.detach().cpu().numpy().astype(dtype)
+
+
+class InteractivePromptExplorer:
+    def __init__(
+        self,
+        params: InitModelParams,
+    ) -> None:
+        # LAION 600k fine-tuned with CinemaNet tags for 6 epochs
+        m = InferenceModel.from_model_params(params, batch_size=1)
+        self.model = m.model
+        self.device = m.model.device
+        self.tokenizer = m.tokenizer
+
+    @torch.no_grad()
+    def encode_image(self, img: Union[PathLike, Image.Image]) -> np.ndarray:
+        if isinstance(img, (str, Path)):
+            return compute_single_file_image_embedding(self.model, img)
+
+        elif isinstance(img, Image.Image):
+            return compute_single_image_embedding(self.model, img)
+
+        else:
+            raise TypeError(f"Unexpected img type {type(img)}")
+
+
+    @torch.no_grad()
+    def encode_texts(self, prompts: Union[str, List[str]]):
+        tokenized_prompts = self.tokenizer(prompts).to(self.device)
+
+        text_embedding = self.model.encode_text(tokenized_prompts)
+        text_embedding /= text_embedding.norm(dim=-1, keepdim=True)
+
+        return to_np(text_embedding)
+
+
+    @staticmethod
+    def normalise(x: pd.Series):
+        return (x-x.min()) / (x.max()-x.min())
+
+
+    def generate_prompt_similarity_scores(
+        self, img: Union[PathLike, Image.Image, np.ndarray], prompts: Union[str, List[str]]
+    ) -> pd.DataFrame:
+        if isinstance(img, (str,Path,Image.Image)):
+            img_embedding = self.encode_image(img)
+        else:
+            assert isinstance(img, np.ndarray)
+            img_embedding = img
+
+        text_embedding = self.encode_texts(prompts)
+        similarities = (img_embedding @ text_embedding.T) . squeeze(0)
+
+        res = pd.DataFrame(zip(prompts, similarities))
+        res.columns = ["prompt", "similarity_score"]
+        res = res.sort_values("similarity_score", ascending=False)
+        res["similarity_score_normalised"] = self.normalise(res["similarity_score"])
+
+        return res
