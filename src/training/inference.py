@@ -73,6 +73,41 @@ def _load_params_txt(file_path):
     return config_dict
 
 
+@dataclass
+class InitModelParams:
+    device: Union[str, int, torch.device]
+    arch: Optional[str] = None
+    pretrained: Optional[str] = None
+    ckpt_path: Optional[str] = None
+    alpha: Optional[float] = None
+
+    @classmethod
+    def from_ckpt_path(cls, ckpt_path, device, alpha):
+        ckpt_path = Path(ckpt_path)
+        assert ckpt_path.parent.name == "checkpoints"
+        root_dir = ckpt_path.parent.parent
+        cfg = _load_params_txt(root_dir / "params.txt")
+
+        return cls(
+            arch=cfg["model"], pretrained=cfg["pretrained"],
+            device=device, alpha=alpha, ckpt_path=ckpt_path,
+        )
+
+    def __post_init__(self):
+        if self.pretrained and self.ckpt_path:
+            if self.alpha is None:
+                raise ValueError(
+                    f"You provided a pretrained model & checkpoint path to blend, but did not "
+                    f"provide alpha values to do the blending"
+                )
+
+        if self.ckpt_path is None:
+            if self.alpha is not None:
+                raise ValueError(
+                    f"Attempting to load pretrained model but `alpha` value is also given. Set it to None if you'd like to proceed"
+                )
+
+
 class InferenceModel:
     def __init__(
         self,
@@ -112,6 +147,7 @@ class InferenceModel:
         self.model = self.load_model(self.alpha)
         self.tokenizer = self.load_tokenizer()
 
+    # TODO: Deprecate this and use `from_model_params` directly
     @classmethod
     def from_ckpt_path(
         cls,
@@ -120,17 +156,18 @@ class InferenceModel:
         alpha: float,
         batch_size: int = 128,
     ):
-        ckpt_path = Path(ckpt_path)
-        assert ckpt_path.parent.name == "checkpoints"
-        root_dir = ckpt_path.parent.parent
-        cfg = _load_params_txt(root_dir / "params.txt")
+        params = InitModelParams.from_ckpt_path(ckpt_path, device, alpha)
+        return cls.from_model_params(params, batch_size)
 
-        arch = cfg["model"]
-        pretrained = cfg["pretrained"]
-
+    @classmethod
+    def from_model_params(cls, params: InitModelParams, batch_size: int = 64):
         return cls(
-            arch=arch, device=device, alpha=alpha, pretrained=pretrained,
-            ckpt_path=ckpt_path, batch_size=batch_size,
+                  arch = params.arch,
+                device = params.device,
+                 alpha = params.alpha,
+            pretrained = params.pretrained,
+             ckpt_path = params.ckpt_path,
+            batch_size = batch_size,
         )
 
     @property
