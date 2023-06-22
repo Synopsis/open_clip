@@ -30,11 +30,11 @@ from training.inference import InferenceModel
 
 @call_parse
 def run_embeddings(
-    arch:           P("(Optional) Model arch", str) = "ViT-L-14",
-    pretrained:     P("(Optional) Pretrained?", str) = "openai",
+    arch:           P("(Optional) Model arch", str) = None,
+    pretrained:     P("(Optional) Pretrained?", str) = None,
     ckpt_path:      P("(Optional) Path to the checkpoint. If `None`, a pretrained model is used", str) = None,
     img_files_json: P("(Optional) A JSON file that is a list of filepaths to run inference on. `/home/synopsis/git/CinemaNet-Training/assets/*sample*json` has a bunch of these ready to go") = "/home/synopsis/git/CinemaNet-Training/assets/shotdeck_sample_830k.json",
-    alphas:         P("(Optional) If using `ckpt_path`, alpha values to blend the pretrained & finetuned model", float, nargs='+') = [0.0, 0.5, 0.75, 1.0],
+    alphas:         P("(Optional) If using `ckpt_path`, alpha values to blend the pretrained & finetuned model", float, nargs='+') = [1.0],
     batch_size:     P("Batch Size", int) = 32,
     num_workers:    P("DataLoader num workers", int) = 4,
     device:         P("Device", int) = 0,
