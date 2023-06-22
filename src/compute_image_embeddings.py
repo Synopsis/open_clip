@@ -17,6 +17,7 @@ if torch.cuda.is_available():
 if True:
     import sys
     sys.path.append("/home/synopsis/git/CinemaNet-Training/")
+    sys.path.append("/home/synopsis/git/CinemaNet-CLIP/")
     sys.path.append("/home/synopsis/git/YOLOX-Custom/")
     sys.path.append("/home/synopsis/git/YOLO-CinemaNet/")
     sys.path.append("/home/synopsis/git/icevision/")
