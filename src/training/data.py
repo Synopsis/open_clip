@@ -618,7 +618,7 @@ def get_data(args, preprocess_fns, epoch=0, tokenizer=None):
 
         data["train"] = DataInfo(dataloader, sampler)
 
-    if args.train_data and args.dataset_type in ["cinema_laion_dynamic_caption"]:
+    elif args.train_data and args.dataset_type in ["cinema_laion_dynamic_caption"]:
         from cinemanet_clip.dataset import CinemaNetLAIONDynamicCaptionDataset
         from cinemanet_clip.labelling.prompt_engineering import DEFAULT_CINEMANET_CATEGORIES
 
