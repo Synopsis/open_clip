@@ -242,6 +242,7 @@ class InferenceModel:
         img_folders: Optional[List[PathLike]] = None,
         batch_size: Optional[int] = 16,
         num_workers: int = 4,
+        img_size: Optional[int] = None,
     ) -> pd.DataFrame:
         """
         If we have passed `path_embeddings` on init, reads the cached embeddings and returns them
@@ -251,7 +252,9 @@ class InferenceModel:
             raise RuntimeError(f"Enter `img_files` and/or `img_folders` to point to images that must be analysed")
 
         return compute_image_embeddings(
-            self.model, img_files, img_folders, batch_size or self.batch_size, num_workers)
+            self.model, img_files, img_folders, batch_size or self.batch_size, num_workers,
+            img_size=img_size,
+        )
 
     @property
     def is_pretrained_model(self) -> bool:

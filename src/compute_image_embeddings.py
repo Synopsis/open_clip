@@ -40,6 +40,7 @@ def run_embeddings(
     num_workers:    P("DataLoader num workers", int) = 4,
     device:         P("Device", int) = 0,
     save_dir:       P("(Optional) Path to save the DataFrame to. If using a trained ckpt, cached embeddings are saved in the root folder", str) = "/home/synopsis/datasets/serialised-datasets/CLIP/CLIP-Embeddings-Cached/",
+    img_size:       P("(Optional) Img size for inference. Model's default size is used if not specified.", int) = None,
 ) -> Tuple[InferenceModel, pd.DataFrame]:
     """
     This script lets you generate a cached embeddings `.feather` file with either
@@ -109,7 +110,7 @@ def run_embeddings(
                       ckpt_path = ckpt_path,
             )
 
-        df = inf.get_image_embeddings(img_files, None, batch_size, num_workers)
+        df = inf.get_image_embeddings(img_files, None, batch_size, num_workers, img_size)
         cached_embeddings_path = inf.save_embedding_df(df, experiment_suffix, save_dir)
 
         if not USING_TRAINED_CKPT:
