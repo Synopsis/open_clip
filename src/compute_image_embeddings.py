@@ -41,6 +41,7 @@ def run_embeddings(
     device:         P("Device", int) = 0,
     save_dir:       P("(Optional) Path to save the DataFrame to. If using a trained ckpt, cached embeddings are saved in the root folder", str) = "/home/synopsis/datasets/serialised-datasets/CLIP/CLIP-Embeddings-Cached/",
     img_size:       P("(Optional) Img size for inference. Model's default size is used if not specified.", int) = None,
+    save_suffix:    P("(Optional) Suffix to add to the saved .feather filename", str) = None,
 ) -> Tuple[InferenceModel, pd.DataFrame]:
     """
     This script lets you generate a cached embeddings `.feather` file with either
@@ -90,6 +91,9 @@ def run_embeddings(
         alphas = [0.0]
         assert save_dir, f"`save_dir` needs to be passed if using a pretrained model"
         experiment_suffix = f"pretrained__{img_files_json.stem}"
+
+    if save_suffix:
+        experiment_suffix += f"__{save_suffix}"
 
     pbar = tqdm(alphas)
     for alpha in pbar:
