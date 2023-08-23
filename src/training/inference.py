@@ -321,7 +321,9 @@ class InferenceModel:
     def eval_cinemanet(
         self,
         categories: Optional[List[str]] = None,
-        viz_title: Optional[str] = None) -> Tuple[dict, dict, dict, dict]:
+        viz_title: Optional[str] = None,
+        img_size: Optional[int] = None,  # Uses model default size, but can be overriden
+    ) -> Tuple[dict, dict, dict, dict]:
         """
         Run inference on the CinemaNet validation sets
 
@@ -352,7 +354,7 @@ class InferenceModel:
             acc,_,_,acc_per_label,inacc_per_label,confusion_matrix = run_cinemanet_eval_by_category(
                 self.model, self.tokenizer, category, batch_size=self.batch_size,
                 verbose=False, taxonomy=taxonomy, reverse_taxonomy=reverse_taxonomy,
-                viz_title=viz_title,
+                viz_title=viz_title, img_size=img_size,
             )
             accuracies_overall[category] = acc
             accuracies_per_label[category] = acc_per_label
@@ -361,7 +363,11 @@ class InferenceModel:
 
         return accuracies_overall, accuracies_per_label, inaccuracies_per_label, confusion_matrices
 
-    def eval_shotdeck_clip_datasets(self, categories: Optional[List[str]] = None):
+    def eval_shotdeck_clip_datasets(
+        self,
+        categories: Optional[List[str]] = None,
+        img_size: Optional[int] = None,  # Uses model default size, but can be overriden
+    ):
         accuracies_overall = {}
         accuracies_per_label = {}
         inaccuracies_per_label = {}
@@ -375,7 +381,7 @@ class InferenceModel:
             try:
                 acc,_,_,acc_per_label,inacc_per_label,confusion_matrix = run_shotdeck_clip_eval_by_category(
                     self.model, self.tokenizer, category, batch_size=self.batch_size,
-                    verbose=False,
+                    verbose=False, img_size=img_size,
                 )
                 accuracies_overall[category] = acc
                 accuracies_per_label[category] = acc_per_label
