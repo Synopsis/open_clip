@@ -63,6 +63,7 @@ class CLIPTextCfg:
     embed_cls: bool = False
     pad_id: int = 0
     output_tokens: bool = False
+    text_mask: str = 'first' # default first truncate in bpe_tokenizer
 
 
 def get_cast_dtype(precision: str):
@@ -193,6 +194,8 @@ class CLIP(nn.Module):
             vision_cfg: CLIPVisionCfg,
             text_cfg: CLIPTextCfg,
             quick_gelu: bool = False,
+            init_logit_scale: float = np.log(1 / 0.07),
+            init_logit_bias: Optional[float] = None,
             cast_dtype: Optional[torch.dtype] = None,
             output_dict: bool = False,
     ):
@@ -210,7 +213,11 @@ class CLIP(nn.Module):
         self.text_projection = text.text_projection
         self.register_buffer('attn_mask', text.attn_mask, persistent=False)
 
-        self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
+        self.logit_scale = nn.Parameter(torch.ones([]) * init_logit_scale)
+        if init_logit_bias is not None:
+            self.logit_bias = nn.Parameter(torch.ones([]) * init_logit_bias)
+        else:
+            self.logit_bias = None
 
     def lock_image_tower(self, unlocked_groups=0, freeze_bn_stats=False):
         # lock image tower as per LiT - https://arxiv.org/abs/2111.07991
@@ -326,12 +333,19 @@ class CLIP(nn.Module):
     ):
         image_features = self.encode_image(image, normalize=True) if image is not None else None
         text_features = self.encode_text(text, normalize=True) if text is not None else None
+
         if self.output_dict:
-            return {
+            out_dict = {
                 "image_features": image_features,
                 "text_features": text_features,
                 "logit_scale": self.logit_scale.exp()
             }
+            if self.logit_bias is not None:
+                out_dict['logit_bias'] = self.logit_bias
+            return out_dict
+
+        if self.logit_bias is not None:
+            return image_features, text_features, self.logit_scale.exp(), self.logit_bias
         return image_features, text_features, self.logit_scale.exp()
 
 
@@ -344,6 +358,8 @@ class CustomTextCLIP(nn.Module):
             vision_cfg: CLIPVisionCfg,
             text_cfg: CLIPTextCfg,
             quick_gelu: bool = False,
+            init_logit_scale: float = np.log(1 / 0.07),
+            init_logit_bias: Optional[float] = None,
             cast_dtype: Optional[torch.dtype] = None,
             output_dict: bool = False,
     ):
@@ -353,7 +369,11 @@ class CustomTextCLIP(nn.Module):
         self.text = _build_text_tower(embed_dim, text_cfg, quick_gelu, cast_dtype)
         self.context_length = self.text.context_length
         self.vocab_size = self.text.vocab_size
-        self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
+        self.logit_scale = nn.Parameter(torch.ones([]) * init_logit_scale)
+        if init_logit_bias is not None:
+            self.logit_bias = nn.Parameter(torch.ones([]) * init_logit_bias)
+        else:
+            self.logit_bias = None
 
     def lock_image_tower(self, unlocked_groups=0, freeze_bn_stats=False):
         # lock image tower as per LiT - https://arxiv.org/abs/2111.07991
@@ -382,12 +402,19 @@ class CustomTextCLIP(nn.Module):
     ):
         image_features = self.encode_image(image, normalize=True) if image is not None else None
         text_features = self.encode_text(text, normalize=True) if text is not None else None
+
         if self.output_dict:
-            return {
+            out_dict = {
                 "image_features": image_features,
                 "text_features": text_features,
                 "logit_scale": self.logit_scale.exp()
             }
+            if self.logit_bias is not None:
+                out_dict['logit_bias'] = self.logit_bias
+            return out_dict
+
+        if self.logit_bias is not None:
+            return image_features, text_features, self.logit_scale.exp(), self.logit_bias
         return image_features, text_features, self.logit_scale.exp()
 
 
@@ -497,7 +524,6 @@ def build_model_from_openai_state_dict(
 
     for key in ["input_resolution", "context_length", "vocab_size"]:
         state_dict.pop(key, None)
-
     convert_weights_to_fp16(model)  # OpenAI state dicts are partially converted to float16
     model.load_state_dict(state_dict)
     return model.eval()
@@ -551,3 +577,35 @@ def resize_pos_embed(state_dict, model, interpolation: str = 'bicubic', antialia
     else:
         new_pos_embed = pos_emb_img
     state_dict['visual.positional_embedding'] = new_pos_embed
+
+
+def resize_text_pos_embed(state_dict, model, interpolation: str = 'linear', antialias: bool = False):
+    old_pos_embed = state_dict.get('positional_embedding', None)
+    if old_pos_embed is None:
+        return
+    # FIXME add support for text cls_token
+    model_pos_embed = getattr(model, 'positional_embedding', None)
+    if model_pos_embed is None:
+        model_pos_embed = getattr(model.text, 'positional_embedding', None)
+
+    old_num_pos = old_pos_embed.shape[0]
+    old_width = old_pos_embed.shape[1]
+    num_pos = model_pos_embed.shape[0]
+    width = model_pos_embed.shape[1]
+    assert old_width == width, 'text pos_embed width changed!'
+    if old_num_pos == num_pos:
+        return
+
+    logging.info('Resizing text position embedding num_pos from %s to %s', old_num_pos, num_pos)
+    old_pos_embed = old_pos_embed.reshape(1, old_num_pos, old_width).permute(0, 2, 1)
+    old_pos_embed = F.interpolate(
+        old_pos_embed,
+        size=num_pos,
+        mode=interpolation,
+        antialias=antialias,
+        align_corners=False,
+    )
+    old_pos_embed = old_pos_embed.permute(0, 2, 1)[0]
+    new_pos_embed = old_pos_embed
+
+    state_dict['positional_embedding'] = new_pos_embed

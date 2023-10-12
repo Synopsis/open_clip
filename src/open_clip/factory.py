@@ -6,19 +6,20 @@ import re
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple, Union
+from functools import partial
 
 import torch
 
 from .constants import OPENAI_DATASET_MEAN, OPENAI_DATASET_STD
 from .model import CLIP, CustomTextCLIP, convert_weights_to_lp, convert_to_custom_text_state_dict,\
-    resize_pos_embed, get_cast_dtype
+    resize_pos_embed, get_cast_dtype, resize_text_pos_embed
 from .coca_model import CoCa
-from .loss import ClipLoss, DistillClipLoss, CoCaLoss
+from .loss import ClipLoss, DistillClipLoss, CoCaLoss, SigLipLoss
 from .openai import load_openai_model
 from .pretrained import is_pretrained_cfg, get_pretrained_cfg, download_pretrained,\
     list_pretrained_tags_by_model, download_pretrained_from_hf
 from .transform import image_transform, AugmentationCfg
-from .tokenizer import HFTokenizer, tokenize
+from .tokenizer import HFTokenizer, tokenize, syntax_mask_tokenize, random_mask_tokenize, block_mask_tokenize
 
 
 HF_HUB_PREFIX = 'hf-hub:'
@@ -109,15 +110,29 @@ def get_tokenizer(model_name, args=None):
     else:
         config = get_model_config(model_name)
         if 'hf_tokenizer_name' in config['text_cfg']:
-            return HFTokenizer(config['text_cfg']['hf_tokenizer_name'])
+            tokenizer = HFTokenizer(config['text_cfg']['hf_tokenizer_name'])
+        elif 'text_mask' in config['text_cfg'] and config['text_cfg']['text_mask'] == 'syntax':
+            tokenizer = syntax_mask_tokenize
+        elif 'text_mask' in config['text_cfg'] and config['text_cfg']['text_mask'] == 'random':
+            tokenizer = random_mask_tokenize
+        elif 'text_mask' in config['text_cfg'] and config['text_cfg']['text_mask'] == 'block':
+            tokenizer = block_mask_tokenize
         else:
-            return tokenize
+            tokenizer = tokenize
+        if 'context_length' in config['text_cfg'].keys():
+            context_length = config['text_cfg']['context_length']
+            tokenizer = partial(tokenizer, context_length=context_length)
+    return tokenizer
 
 
 def load_state_dict(checkpoint_path: str, map_location='cpu'):
     checkpoint = torch.load(checkpoint_path, map_location=map_location)
     if isinstance(checkpoint, dict) and 'state_dict' in checkpoint:
         state_dict = checkpoint['state_dict']
+    elif isinstance(checkpoint, torch.jit.ScriptModule):
+        state_dict = checkpoint.state_dict()
+        for key in ["input_resolution", "context_length", "vocab_size"]:
+            state_dict.pop(key, None)
     else:
         state_dict = checkpoint
     if next(iter(state_dict.items()))[0].startswith('module'):
@@ -130,7 +145,12 @@ def load_checkpoint(model, checkpoint_path, strict=True):
     # detect old format and make compatible with new format
     if 'positional_embedding' in state_dict and not hasattr(model, 'positional_embedding'):
         state_dict = convert_to_custom_text_state_dict(state_dict)
+    # Certain text transformers no longer expect position_ids after transformers==4.31
+    position_id_key = 'text.transformer.embeddings.position_ids'
+    if position_id_key in state_dict and not hasattr(model, position_id_key):
+        del state_dict[position_id_key]
     resize_pos_embed(state_dict, model)
+    resize_text_pos_embed(state_dict, model)
     incompatible_keys = model.load_state_dict(state_dict, strict=strict)
     return incompatible_keys
 
@@ -150,6 +170,7 @@ def create_model(
         cache_dir: Optional[str] = None,
         output_dict: Optional[bool] = None,
         require_pretrained: bool = False,
+        **model_kwargs,
 ):
     has_hf_hub_prefix = model_name.startswith(HF_HUB_PREFIX)
     if has_hf_hub_prefix:
@@ -214,12 +235,12 @@ def create_model(
         if custom_text:
             if is_hf_model:
                 model_cfg['text_cfg']['hf_model_pretrained'] = pretrained_hf
-            if "coca" in model_name:
-                model = CoCa(**model_cfg, cast_dtype=cast_dtype)
+            if "multimodal_cfg" in model_cfg:
+                model = CoCa(**model_cfg, **model_kwargs, cast_dtype=cast_dtype)
             else:
-                model = CustomTextCLIP(**model_cfg, cast_dtype=cast_dtype)
+                model = CustomTextCLIP(**model_cfg, **model_kwargs, cast_dtype=cast_dtype)
         else:
-            model = CLIP(**model_cfg, cast_dtype=cast_dtype)
+            model = CLIP(**model_cfg, **model_kwargs, cast_dtype=cast_dtype)
 
         if precision in ("fp16", "bf16"):
             dtype = torch.float16 if 'fp16' in precision else torch.bfloat16
@@ -307,6 +328,12 @@ def create_loss(args):
             world_size=args.world_size,
             use_horovod=args.horovod,
         )
+    elif args.siglip:
+        assert not args.horovod, "Horovod not currently supported for SigLip"
+        return SigLipLoss(
+            rank=args.rank,
+            world_size=args.world_size,
+        )
     return ClipLoss(
         local_loss=args.local_loss,
         gather_with_grad=args.gather_with_grad,
@@ -334,6 +361,7 @@ def create_model_and_transforms(
         aug_cfg: Optional[Union[Dict[str, Any], AugmentationCfg]] = None,
         cache_dir: Optional[str] = None,
         output_dict: Optional[bool] = None,
+        **model_kwargs,
 ):
     model = create_model(
         model_name,
@@ -349,6 +377,7 @@ def create_model_and_transforms(
         pretrained_hf=pretrained_hf,
         cache_dir=cache_dir,
         output_dict=output_dict,
+        **model_kwargs,
     )
 
     image_mean = image_mean or getattr(model.visual, 'image_mean', None)
@@ -383,6 +412,7 @@ def create_model_from_pretrained(
         image_mean: Optional[Tuple[float, ...]] = None,
         image_std: Optional[Tuple[float, ...]] = None,
         cache_dir: Optional[str] = None,
+        **model_kwargs,
 ):
     model = create_model(
         model_name,
@@ -395,6 +425,7 @@ def create_model_from_pretrained(
         force_image_size=force_image_size,
         cache_dir=cache_dir,
         require_pretrained=True,
+        **model_kwargs,
     )
 
     if not return_transform:
