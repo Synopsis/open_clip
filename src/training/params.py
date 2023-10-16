@@ -293,6 +293,18 @@ def parse_args(args):
         help="path to latest checkpoint (default: none)",
     )
     parser.add_argument(
+        "--ckpt_cinemaclip_for_text_enc",
+        default=None,
+        type=str,
+        help="path to a CLIP checkpoint to load into the text encoder",
+    )
+    parser.add_argument(
+        "--ckpt_cinemanet_for_img_enc",
+        default=None,
+        type=str,
+        help="path to a CinemaNet checkpoint to load as the image encoder",
+    )
+    parser.add_argument(
         "--precision",
         choices=["amp", "amp_bf16", "amp_bfloat16", "bf16", "fp16", "pure_bf16", "pure_fp16", "fp32"],
         default="amp",
