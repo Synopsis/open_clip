@@ -450,10 +450,10 @@ def main(args):
             logging.info(f"=> loaded checkpoint '{args.resume}' (epoch {start_epoch})")
 
     if args.ckpt_cinemaclip_for_text_enc:
-        model.load_nonvisual_weights_from_clip_ckpt(ckpt_path=args.ckpt_cinemaclip_for_text_enc)
+        unwrap_model(model).load_nonvisual_weights_from_clip_ckpt(ckpt_path=args.ckpt_cinemaclip_for_text_enc)
 
     if args.ckpt_cinemanet_for_img_enc:
-        model.load_visual_weights_from_cinemanet_ckpt(ckpt_path=args.ckpt_cinemanet_for_img_enc)
+        unwrap_model(model).load_visual_weights_from_cinemanet_ckpt(ckpt_path=args.ckpt_cinemanet_for_img_enc)
 
     # initialize datasets
     data = get_data(args, (preprocess_train, preprocess_val), epoch=start_epoch, tokenizer=tokenizer)
