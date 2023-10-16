@@ -286,6 +286,11 @@ class CLIP(nn.Module):
         return
 
 
+    def load_visual_weights_from_cinemanet_ckpt(self, ckpt_path: str) -> None:
+        assert type(self.visual) == TimmModel
+        self.visual.load_cinemanet_backbone_checkpoint(ckpt_path=ckpt_path)
+        print(f"<Loaded CinemaNet weights into vision tower>")
+
     # def lock_text_tower(
     #     self,
     #     unlocked_layers: int = 0,

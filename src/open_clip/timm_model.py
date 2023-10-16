@@ -4,6 +4,7 @@ Wraps timm (https://github.com/rwightman/pytorch-image-models) models for use as
 """
 import logging
 from collections import OrderedDict
+from typing import List
 
 import torch
 import torch.nn as nn
@@ -23,6 +24,23 @@ except ImportError:
     timm = None
 
 from .utils import freeze_batch_norm_2d
+
+
+# NOTE: Copied over from cinemanet-multitas-classification pkg for brevity
+# Removed dropout layers (following timm practices for open-clip)
+# The main diff here is that `hidden_dim` is hard-coded to 512. As per timm open-clip implementation,
+# it should be (640*2 = 1280)
+def _create_mlp_proj_head(
+    in_feat=1280, out_feat=640, hidden_dim=512
+) -> nn.Sequential:
+    return nn.Sequential(
+        nn.Dropout(0.0),
+        nn.Linear(in_feat, hidden_dim, bias=False),
+        nn.ReLU(inplace=True),
+        nn.BatchNorm1d(hidden_dim, eps=1e-5),
+        nn.Dropout(0.0),
+        nn.Linear(hidden_dim, out_feat)
+    )
 
 
 class TimmModel(nn.Module):
@@ -49,10 +67,17 @@ class TimmModel(nn.Module):
 
         # setup kwargs that may not be common across all models
         timm_kwargs = {}
-        if drop_path is not None:
-            timm_kwargs['drop_path_rate'] = drop_path
-        if patch_drop is not None:
-            timm_kwargs['patch_drop_rate'] = patch_drop
+        if "ghostnet" in model_name:
+            timm_kwargs['drop_rate'] = drop_path
+        else:
+            if drop_path is not None:
+                timm_kwargs['drop_path_rate'] = drop_path
+            if patch_drop is not None:
+                timm_kwargs['patch_drop_rate'] = patch_drop
+        # if drop_path is not None:
+        #     timm_kwargs['drop_path_rate'] = drop_path
+        # if patch_drop is not None:
+        #     timm_kwargs['patch_drop_rate'] = patch_drop
 
         custom_pool = pool in ('abs_attn', 'rot_attn')
         if not proj and not custom_pool:
@@ -99,10 +124,35 @@ class TimmModel(nn.Module):
             head_layers['proj'] = nn.Linear(prev_chs, embed_dim, bias=proj_bias)
         elif proj == 'mlp':
             head_layers['mlp'] = Mlp(prev_chs, 2 * embed_dim, embed_dim, drop=(drop, 0), bias=(True, proj_bias))
+        elif proj == 'mlp_cinemanet':
+            head_layers['mlp'] = _create_mlp_proj_head(prev_chs, hidden_dim=512, out_feat=embed_dim)
         else:
             assert not proj, f'Unknown projection type {proj}.'
 
         self.head = nn.Sequential(head_layers)
+
+    def load_cinemanet_backbone_checkpoint(self, ckpt_path: str):
+        ckpt = torch.load(ckpt_path, map_location="cpu")
+        cnet_weights = ckpt["state_dict"]
+        weights_renamed = OrderedDict()
+
+        for k,v in cnet_weights.items():
+            # Irrelevant keys
+            if "classifier_heads" in k: continue
+            if "loss_functions" in k:   continue
+
+            # Copy over relevant keys, renaming them as needed
+            if "model.encoder" in k:
+                k_target = k.replace("model.encoder.", "trunk.")
+            elif "embed_proj_head" in k:
+                k_target = k.replace("model.embed_proj_head.", "head.mlp.")
+            else:
+                raise RuntimeError(f"Unexpected key {k}")
+
+            weights_renamed[k_target] = v
+
+        return self.load_state_dict(weights_renamed, strict=True)
+
 
     def lock(self, unlocked_groups=0, freeze_bn_stats=False):
         """ lock modules
