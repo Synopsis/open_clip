@@ -64,6 +64,7 @@ class TimmModel(nn.Module):
         if timm is None:
             raise RuntimeError("Please `pip install timm` to use timm models.")
         self.image_size = to_2tuple(image_size)
+        self.proj = proj
 
         # setup kwargs that may not be common across all models
         timm_kwargs = {}
@@ -151,7 +152,21 @@ class TimmModel(nn.Module):
 
             weights_renamed[k_target] = v
 
-        return self.load_state_dict(weights_renamed, strict=True)
+        missing = self.load_state_dict(weights_renamed, strict=False)
+        # If using CinemaNet mlp head explicitly, we must have loaded in pre-trained adapter weights
+        if self.proj == "mlp_cinemanet":
+            assert missing.unexpected_keys == []
+            assert missing.missing_keys == []
+        # Else, we may or may not have loaded pre-trained adapter weights.
+        # As of 16 Oct 2023, we certainly do not. However, in the future, we may have the same components
+        # adapted into the backbone training and will be loading pre-trained weights here too.
+        else:
+            if len(missing.missing_keys) > 0:
+                for key in missing.missing_keys: assert "head." in key
+                print(f"Missing following keys from ckpt for adapter head: {missing.missing_keys}")
+                print(f"Training a freshly initialised non pre-trained adapter")
+
+        return missing
 
 
     def lock(self, unlocked_groups=0, freeze_bn_stats=False):
