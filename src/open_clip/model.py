@@ -257,6 +257,35 @@ class CLIP(nn.Module):
                 raise TypeError(f"Encountered unexpected module type {type(module)} for module {module}")
 
 
+    def load_nonvisual_weights_from_clip_ckpt(self, ckpt_path:str) -> None:
+        """
+        Load a previous checkpoint's non image-encoder (`self.visual`) weights into
+        current model.
+        """
+        ckpt = torch.load(ckpt_path, map_location="cpu")
+        sd = ckpt["state_dict"]
+        
+        # If loading a distributed checkpoint (whose keys begin with 'module.*')
+        if next(iter(sd.items()))[0].startswith('module'):
+            sd = {k.replace("module.", ""): v for k, v in sd.items()}
+        
+        sd_nonvisual = {}
+        for k,v in sd.items():
+            if "visual." in k: continue
+            sd_nonvisual[k] = v
+
+        # Ensure that the only non loaded params belong to the image encoder
+        missing = self.load_state_dict(sd_nonvisual, strict=False)
+        # print(missing)
+        for key in missing.missing_keys:
+            if not "visual" in key: raise ValueError(f"Missing non-visual key '{key}' in the checkpoint")
+        for key in missing.unexpected_keys:
+            if not "visual" in key: raise ValueError(f"Found non-visual key '{key}' in the checkpoint that isn't part of the current CLIP model")
+        
+        print("<Loaded non visual parameters successfully>")
+        return
+
+
     # def lock_text_tower(
     #     self,
     #     unlocked_layers: int = 0,
