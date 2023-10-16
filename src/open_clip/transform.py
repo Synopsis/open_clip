@@ -143,7 +143,7 @@ def image_transform(
                 **aug_cfg_dict,
             )
         else:
-            train_transform = Compose([
+            train_transform = [
                 # RandomResizedCrop(
                 #     image_size,
                 #     scale=aug_cfg_dict.pop('scale'),
@@ -151,7 +151,7 @@ def image_transform(
                 # ),
                 Resize((image_size, image_size), interpolation=InterpolationMode.BICUBIC, antialias=True),
                 _convert_to_rgb,
-            ])
+            ]
             if aug_cfg.color_jitter_prob:
                 assert aug_cfg.color_jitter is not None and len(aug_cfg.color_jitter) == 4
                 train_transform.extend([
