@@ -426,7 +426,7 @@ class InferenceModelWhileTraining(InferenceModel):
 
         # patch args
         self.args = deepcopy(args)
-        self.args.imagenet_val = "/home/synopsis/datasets/ImageNet/validation/"
+        self.args.imagenet_val = "/mnt/DataSSD/datasets/ImageNet/validation/"
         self.args.zeroshot_frequency = 1
         self.args.val_frequency = 1
         self.args.distributed = False
