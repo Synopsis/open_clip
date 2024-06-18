@@ -189,9 +189,15 @@ def load_checkpoint(
     if 'positional_embedding' in state_dict and not hasattr(model, 'positional_embedding'):
         state_dict = convert_to_custom_text_state_dict(state_dict)
 
-    # If loading a non-SigLIP model for SigLIP training. See https://github.com/mlfoundations/open_clip/issues/712
-    if 'logit_bias' not in state_dict and model.logit_bias is not None:
-        state_dict["logit_bias"] = torch.zeros_like(state_dict["logit_scale"])
+    # We should only be taking this code path when loading a model for SigLIP training
+    # but from a checkpoint that was trained with Softmax
+    # Open issue (as of 26 Oct, 2023): https://github.com/mlfoundations/open_clip/issues/712
+    if not 'logit_bias' in state_dict and hasattr(model, "logit_bias"):
+        state_dict["logit_bias"] = model.state_dict()["logit_bias"]
+
+        # NOTE: Over-writing checkpoint's logit scale because presumably we're doing Sigmoid training
+        # whose scale is quite different from Softmax training
+        state_dict["logit_scale"] = model.state_dict()["logit_scale"]
 
     # Certain text transformers no longer expect position_ids after transformers==4.31
     position_id_key = 'text.transformer.embeddings.position_ids'
