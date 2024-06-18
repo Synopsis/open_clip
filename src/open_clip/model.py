@@ -19,7 +19,7 @@ from .hf_model import HFTextEncoder
 from .modified_resnet import ModifiedResNet
 from .timm_model import TimmModel
 from .transformer import LayerNormFp32, LayerNorm, QuickGELU, Attention, VisionTransformer, TextTransformer,\
-    text_global_pool
+    text_global_pool, lock_text_transformer
 from .utils import to_2tuple
 
 
