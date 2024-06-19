@@ -331,13 +331,20 @@ def image_transform(
                 **aug_cfg_dict,
             )
         else:
+            if isinstance(image_size, int):
+                input_size = (image_size, image_size)
+            else:
+                assert isinstance(image_size, tuple)
+                assert len(image_size) == 2
+                input_size = image_size
+
             train_transform = [
                 # RandomResizedCrop(
                 #     image_size,
                 #     scale=aug_cfg_dict.pop('scale'),
                 #     interpolation=InterpolationMode.BICUBIC,
                 # ),
-                Resize((image_size, image_size), interpolation=InterpolationMode.BICUBIC, antialias=True),
+                Resize(input_size, interpolation=InterpolationMode.BICUBIC, antialias=True),
                 _convert_to_rgb,
             ]
             if aug_cfg.color_jitter_prob:
