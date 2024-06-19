@@ -260,35 +260,7 @@ class CLIP(nn.Module):
     # NOTE: Copied over from https://github.com/mlfoundations/open_clip/pull/523
     # Will need to manually update any changes made there until the PR is merged and synced with this branch...
     def lock_text_tower(self, unlocked_layers: int = 0, freeze_layer_norm: bool = True):
-        # Unlike the `self.visual` component, the text encoder is embedded into the main class
-        # So we need to do all the work here itself
-        # See `self.encode_text()` for order of ops. We want to freeze the last layers first
-        embeddings = [self.token_embedding, self.positional_embedding]
-        resblocks = self.transformer.resblocks
-        final_text_projection = self.text_projection
-        final_ln = self.ln_final
-
-        # TODO: Make both embeddings behave as one module, and the final_ln + final_text_projection
-        # as a single module as well? Not sure how the final layers are structured in HF
-        modules = [*embeddings, *resblocks, final_text_projection, final_ln]
-
-        if (not unlocked_layers) or (unlocked_layers == 0):  # full freezing
-            modules_to_lock = modules
-        else:
-            modules_to_lock = modules[:-unlocked_layers]
-
-        for module in modules_to_lock:
-            # `self.text_projection` and `self.positional_embedding`
-            if isinstance(module, nn.Parameter):
-                module.requires_grad = False
-
-            # All other modules
-            elif isinstance(module, nn.Module):
-                for n, p in module.named_parameters():
-                    p.requires_grad = (not freeze_layer_norm) if "LayerNorm" in n.split(".") else False
-
-            else:
-                raise TypeError(f"Encountered unexpected module type {type(module)} for module {module}")
+        lock_text_transformer(self, unlocked_layers, freeze_layer_norm)
 
 
     def load_nonvisual_weights_from_clip_ckpt(self, ckpt_path:str) -> None:
