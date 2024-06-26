@@ -7,8 +7,9 @@ Welcome to an open source implementation of OpenAI's [CLIP](https://arxiv.org/ab
 
 Using this codebase, we have trained several models on a variety of data sources and compute budgets, ranging from [small-scale experiments](docs/LOW_ACC.md) to larger runs including models trained on datasets such as [LAION-400M](https://arxiv.org/abs/2111.02114), [LAION-2B](https://arxiv.org/abs/2210.08402) and [DataComp-1B](https://arxiv.org/abs/2304.14108).
 Many of our models and their scaling properties are studied in detail in the paper [reproducible scaling laws for contrastive language-image learning](https://arxiv.org/abs/2212.07143).
-Some of our best models and their zero-shot ImageNet-1k accuracy are shown below, along with the ViT-L model trained by OpenAI. 
+Some of the best models we've trained and their zero-shot ImageNet-1k accuracy are shown below, along with the ViT-L model trained by OpenAI and other state-of-the-art open source alternatives (all can be loaded via OpenCLIP).
 We provide more details about our full collection of pretrained models [here](docs/PRETRAINED.md), and zero-shot results for 38 datasets [here](docs/openclip_results.csv).
+
 
 
 | Model    | Training data | Resolution | # of samples seen | ImageNet zero-shot acc. | 
@@ -23,7 +24,11 @@ We provide more details about our full collection of pretrained models [here](do
 | ViT-L/14  | DataComp-1B  | 224px | 13B | 79.2% |
 | ViT-G/14  | LAION-2B  | 224px | 34B | 80.1% |
 |  |  |   |   |  |
-| ViT-L/14 | OpenAI's WIT | 224px | 13B | 75.5% | 
+| ViT-L/14 [(Original CLIP)](https://arxiv.org/abs/2103.00020) | WIT | 224px | 13B | 75.5% | 
+| ViT-SO400M/14 [(SigLIP)](https://arxiv.org/abs/2303.15343) | WebLI | 224px | 45B | 82.0% | 
+| ViT-SO400M-14-SigLIP-384 [(SigLIP)](https://arxiv.org/abs/2303.15343) |  WebLI | 384px | 45B | 83.1% |
+| ViT-H/14-quickgelu [(DFN)](https://arxiv.org/abs/2309.17425) | DFN-5B | 224px | 39B | 83.4% | 
+| ViT-H-14-378-quickgelu [(DFN)](https://arxiv.org/abs/2309.17425) | DFN-5B | 378px | 44B | 84.4% |
 
 Model cards with additional model specific details can be found on the Hugging Face Hub under the OpenCLIP library tag: https://huggingface.co/models?library=open_clip. 
 
@@ -50,9 +55,10 @@ from PIL import Image
 import open_clip
 
 model, _, preprocess = open_clip.create_model_and_transforms('ViT-B-32', pretrained='laion2b_s34b_b79k')
+model.eval()  # model in train mode by default, impacts some models with BatchNorm or stochastic depth active
 tokenizer = open_clip.get_tokenizer('ViT-B-32')
 
-image = preprocess(Image.open("CLIP.png")).unsqueeze(0)
+image = preprocess(Image.open("docs/CLIP.png")).unsqueeze(0)
 text = tokenizer(["a diagram", "a dog", "a cat"])
 
 with torch.no_grad(), torch.cuda.amp.autocast():
@@ -80,6 +86,8 @@ More details about our pretrained models are available [here](docs/PRETRAINED.md
 >>> import open_clip
 >>> open_clip.list_pretrained()
 ```
+
+You can find more about the models we support (e.g. number of parameters, FLOPs) in [this table](docs/model_profile.csv).
 
 NOTE: Many existing checkpoints use the QuickGELU activation from the original OpenAI models. This activation is actually less efficient than native torch.nn.GELU in recent versions of PyTorch. The model defaults are now nn.GELU, so one should use model definitions with `-quickgelu` postfix for the OpenCLIP pretrained weights. All OpenAI pretrained weights will always default to QuickGELU. One can also use the non `-quickgelu` model definitions with pretrained weights using QuickGELU but there will be an accuracy drop, for fine-tune that will likely vanish for longer runs.
 Future trained models will use nn.GELU.
@@ -353,7 +361,7 @@ import pandas as pd
 import os
 
 root_path = "path/to/data/dir" # set this to smth meaningful
-ds = build_dataset("mscoco_captions", root=root_path, split="train") # this downloads the dataset if it is not there already
+ds = build_dataset("mscoco_captions", root=root_path, split="train", task="captioning") # this downloads the dataset if it is not there already
 coco = ds.coco
 imgs = coco.loadImgs(coco.getImgIds())
 future_df = {"filepath":[], "title":[]}

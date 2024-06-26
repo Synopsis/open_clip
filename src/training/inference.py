@@ -304,7 +304,7 @@ class InferenceModel:
         """
         from training.train import evaluate
         from training.data import get_imagenet
-        from open_clip.factory import image_transform
+        from open_clip.transform import image_transform
 
         args = self._get_eval_args(
             self.batch_size, 4, path_imagenet, wandb_id, self.device)

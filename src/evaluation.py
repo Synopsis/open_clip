@@ -3,7 +3,7 @@ import torch
 from datetime import datetime
 
 from open_clip import get_tokenizer
-from open_clip.factory import image_transform
+from open_clip.transform import image_transform
 from training.train import evaluate, unwrap_model
 from training.data import get_imagenet
 
