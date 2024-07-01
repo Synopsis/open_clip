@@ -72,6 +72,7 @@ def run_embeddings(
                 "`save_dir` will be ignored as we're using a trained checkpoint. The embeddings will be saved inside the checkpoint's root folder"
             )
         save_dir = Path(ckpt_path).parent.parent / "Evals"
+        save_dir.mkdir(exist_ok=True)
         experiment_suffix = Path(ckpt_path).parent.parent.name[:19]  # Extracts unique timestamp
 
     else:
