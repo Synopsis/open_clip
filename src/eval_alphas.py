@@ -117,6 +117,6 @@ def run_embeddings(
         df["ckpt_path"] = inf.ckpt_path
         df["pretrained"] = inf.pretrained
 
-        df.to_csv(save_dir / f"{inf.arch}__{inf.pretrained}__alpha={inf.alpha}.csv")
+        df.to_csv(save_dir / f"{inf.arch}__{experiment_suffix}__alpha={inf.alpha}.csv")
 
     return inf, df
