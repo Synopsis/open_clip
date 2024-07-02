@@ -1,7 +1,6 @@
 from upyog.all import *
 from open_clip import get_tokenizer
 from open_clip.pretrained import get_pretrained_cfg
-from open_clip.constants import OPENAI_DATASET_MEAN, OPENAI_DATASET_STD
 from cinemanet_clip.inference.inference import (
     compute_single_file_image_embedding, compute_single_image_embedding
 )
@@ -310,10 +309,12 @@ class InferenceModel:
             self.batch_size, 4, path_imagenet, wandb_id, self.device)
 
         imagenet_data = {}
-        image_mean = self.model.visual.image_mean
-        image_std = self.model.visual.image_std
         preproc = image_transform(
-            self.model.visual.image_size, False, image_mean, image_std)
+            image_size=self.model.visual.image_size,
+            is_train=False,
+            mean=self.model.visual.image_mean,
+            std=self.model.visual.image_std,
+        )
         imagenet_data["imagenet-val"] = get_imagenet(args, (None, preproc), split="val")
 
         return evaluate(self.model, imagenet_data, 1, args)
@@ -414,10 +415,11 @@ class InferenceModelWhileTraining(InferenceModel):
         self.model = unwrap_model(model)
         self.model.device = torch.device(args.device)
 
+        # FIXME: Is this necessary? This really shouldn't be happening here
         if not hasattr(self.model.visual, "image_mean"):
             pretrained_cfg = get_pretrained_cfg(args.model, args.pretrained)
-            self.model.visual.image_mean = pretrained_cfg.get('mean', None) or OPENAI_DATASET_MEAN
-            self.model.visual.image_std = pretrained_cfg.get('std', None) or OPENAI_DATASET_STD
+            self.model.visual.image_mean = pretrained_cfg["mean"]
+            self.model.visual.image_std = pretrained_cfg["std"]
 
         self.restore_state_dict = {
             k:v.detach().cpu() for k,v in unwrap_model(model).state_dict().items()}
