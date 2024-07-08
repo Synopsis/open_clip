@@ -23,6 +23,8 @@ try:
         RepetitionPenaltyLogitsProcessor,
         MinLengthLogitsProcessor,
         MaxLengthCriteria,
+        StopStringCriteria,
+        EosTokenCriteria,
         StoppingCriteriaList
     )
 
@@ -74,6 +76,14 @@ def _build_text_decoder_tower(
     )
 
     return decoder
+
+
+def _token_to_tensor(token_id, device: str = "cpu") -> torch.Tensor:
+    if not isinstance(token_id, torch.Tensor):
+        if isinstance(token_id, int):
+            token_id = [token_id]
+        token_id = torch.tensor(token_id, device=device)
+    return token_id
 
 
 class CoCa(nn.Module):
@@ -213,10 +223,11 @@ class CoCa(nn.Module):
         # https://huggingface.co/docs/transformers/main/en/main_classes/text_generation
         assert _has_transformers, "Please install transformers for generate functionality. `pip install transformers`."
         assert seq_len > min_seq_len, "seq_len must be larger than min_seq_len"
+        device = image.device
 
         with torch.no_grad():
-            sot_token_id = 49406 if sot_token_id is None else sot_token_id
-            eos_token_id = 49407 if eos_token_id is None else eos_token_id
+            sot_token_id = _token_to_tensor(49406 if sot_token_id is None else sot_token_id, device=device)
+            eos_token_id = _token_to_tensor(49407 if eos_token_id is None else eos_token_id, device=device)
             pad_token_id = self.pad_id if pad_token_id is None else pad_token_id
             logit_processor = LogitsProcessorList(
                 [
@@ -227,12 +238,7 @@ class CoCa(nn.Module):
 
             if stopping_criteria is None:
                 stopping_criteria = [MaxLengthCriteria(max_length=seq_len)]
-
-            stopping_criteria = StoppingCriteriaList(
-                stopping_criteria
-            )
-
-            device = image.device
+            stopping_criteria = StoppingCriteriaList(stopping_criteria)
 
             if generation_type == "beam_search":
                 output = self._generate_beamsearch(
@@ -250,7 +256,7 @@ class CoCa(nn.Module):
                     pad_len = seq_len - output.shape[1]
                     return torch.cat((
                             output,
-                            torch.ones(output.shape[0], pad_len, device=device, dtype=output.dtype) * self.pad_id
+                            torch.ones(output.shape[0], pad_len, device=device, dtype=output.dtype) * pad_token_id
                         ),
                         dim=1
                     )
@@ -311,7 +317,7 @@ class CoCa(nn.Module):
 
                 cur_len += 1
 
-                if stopping_criteria(out, None):
+                if all(stopping_criteria(out, None)):
                     break
 
             if num_dims == 1:
@@ -453,7 +459,7 @@ class CoCa(nn.Module):
 
             # increase cur_len
             cur_len = cur_len + 1
-            if beam_scorer.is_done or stopping_criteria(input_ids, None):
+            if beam_scorer.is_done or all(stopping_criteria(input_ids, None)):
                 break
 
         final_beam_indices = sum(beam_indices, ()) if beam_indices is not None else None

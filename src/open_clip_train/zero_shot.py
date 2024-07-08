@@ -5,7 +5,7 @@ from tqdm import tqdm
 
 from open_clip import get_input_dtype, get_tokenizer, build_zero_shot_classifier, \
     IMAGENET_CLASSNAMES, OPENAI_IMAGENET_TEMPLATES
-from .precision import get_autocast
+from open_clip_train.precision import get_autocast
 
 
 def accuracy(output, target, topk=(1,)):
@@ -18,7 +18,7 @@ def run(model, classifier, dataloader, args):
     autocast = get_autocast(args.precision)
     input_dtype = get_input_dtype(args.precision)
 
-    with torch.no_grad():
+    with torch.inference_mode():
         top1, top5, n = 0., 0., 0.
         for images, target in tqdm(dataloader, unit_scale=args.batch_size):
             images = images.to(device=args.device, dtype=input_dtype)

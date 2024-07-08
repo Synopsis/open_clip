@@ -15,9 +15,9 @@ except ImportError:
     wandb = None
 
 from open_clip import get_input_dtype, CLIP, CustomTextCLIP
-from .distributed import is_master
-from .zero_shot import zero_shot_eval
-from .precision import get_autocast
+from open_clip_train.distributed import is_master
+from open_clip_train.zero_shot import zero_shot_eval
+from open_clip_train.precision import get_autocast
 
 
 class AverageMeter(object):
@@ -271,7 +271,7 @@ def evaluate(model, data, epoch, args, tb_writer=None, tokenizer=None):
         cumulative_loss = 0.0
         cumulative_gen_loss = 0.0
         all_image_features, all_text_features = [], []
-        with torch.no_grad():
+        with torch.inference_mode():
             for i, batch in enumerate(dataloader):
                 images, texts = batch
                 images = images.to(device=device, dtype=input_dtype, non_blocking=True)
